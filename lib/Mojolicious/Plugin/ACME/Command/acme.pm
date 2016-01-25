@@ -14,6 +14,7 @@ use Crypt::OpenSSL::Bignum; # get_key_parameters
 use Crypt::OpenSSL::PKCS10;
 use Digest::SHA 'sha256';
 use MIME::Base64 qw/encode_base64url/;
+use Scalar::Util;
 
 has account_file => 'account.key';
 has account_key => sub { Crypt::OpenSSL::RSA->new_private_key(slurp(shift->account_file)) };
@@ -30,6 +31,24 @@ has header => sub {
     },
   };
 };
+has server => sub {
+  my $command = shift;
+  my $app = Mojolicious->new;
+  my $server = Mojo::Server::Daemon->new(
+    app    => $app,
+    listen => [$command->app->config('acme')->{client_url}],
+  );
+  Scalar::Util::weaken $command;
+  $app->routes->get('/:token' => sub {
+    my $c = shift;
+    my $token = $c->stash('token');
+    return $c->reply->not_found
+      unless my $cb = delete $command->tokens->{$token};
+    $c->render(text => $command->keyauth($token));
+    $command->$cb($token);
+  });
+  return $server->start;
+};
 has thumbprint => sub {
   my $jwk = shift->header->{jwk};
   # manually format json for sorted keys
@@ -37,55 +56,16 @@ has thumbprint => sub {
   my $json = sprintf $fmt, @{$jwk}{qw/e kty n/};
   return encode_base64url( sha256($json) );
 };
+has tokens => sub { {} };
 has ua => sub { Mojo::UserAgent->new };
 
 sub run {
   my ($command, @args) = @_;
 
+  Mojo::IOLoop->delay(
+    sub { $command->new_authz('jberger.pl' => shift->begin) },
+  )->wait;
   #die 'Register failed' unless $command->register;
-  my $url = $command->ca->clone->path('/acme/new-authz');
-  my $req = $command->signed_request({
-    resource => 'new-authz',
-    identifier => {
-      type  => 'dns',
-      value => 'jberger.pl',
-    },
-  });
-  my $tx = $command->ua->post($url, $req);
-  unless ($tx->res->code == 201) {
-    say $tx->res->body;
-    die 'Error requesting challenges';
-  }
-
-  my $challenges = $tx->res->json('/challenges') || [];
-  die 'No http challenge available'
-    unless my $http = c(@$challenges)->first(sub{ $_->{type} eq 'http-01' });
-
-  print Mojo::Util::dumper $http;
-  exit;
-
-  my $token = $http->{token};
-  my $keyauth = $token . '.' . $command->thumbprint;
-
-  my $app = Mojolicious->new;
-  my $server = Mojo::Server::Daemon->new(
-    app    => $app,
-    listen => [$command->app->config('acme')->{client_url}],
-  );
-  my $seen;
-  my $timer = Mojo::IOLoop->timer(5 => sub { $server->stop->ioloop->stop });
-  $app->routes->get('/:token' => sub {
-    my $c = shift;
-    return $c->reply->not_found unless $c->stash('token') eq $token;
-    $c->render(text => $keyauth);
-    $seen++;
-    $server->stop->ioloop->stop;
-  });
-  $server->start;
-  Mojo::IOLoop->start;
-  Mojo::IOLoop->remove($timer);
-  return $seen;
-
   #Mojo::Util::spurt($command->generate_csr(qw/jberger.pl *.jberger.pl/) => 'out.csr');
   #say $command->thumbprint;
 }
@@ -109,6 +89,40 @@ sub generate_csr {
   $req->add_ext_final;
   $req->sign;
   return $req->get_pem_req;
+}
+
+sub keyauth {
+  my ($command, $token) = @_;
+  return $token . '.' . $command->thumbprint;
+}
+
+sub new_authz {
+  my ($command, $value, $cb) = @_;
+  my $url = $command->ca->clone->path('/acme/new-authz');
+  my $req = $command->signed_request({
+    resource => 'new-authz',
+    identifier => {
+      type  => 'dns',
+      value => $value,
+    },
+  });
+  my $tx = $command->ua->post($url, $req);
+  die 'Error requesting challenges' unless $tx->res->code == 201;
+
+  my $challenges = $tx->res->json('/challenges') || [];
+  die 'No http challenge available'
+    unless my $http = c(@$challenges)->first(sub{ $_->{type} eq 'http-01' });
+
+  my $token = $http->{token};
+  $command->tokens->{$token} = $cb;
+  $command->server; #ensure server started
+
+  my $trigger = $command->signed_request({
+    resource => 'challenge',
+    keyAuthorization => $command->keyauth($token),
+  });
+  die 'Error triggering challenge'
+    unless $command->ua->post($http->{uri}, $trigger)->res->code == 202;
 }
 
 sub register {
