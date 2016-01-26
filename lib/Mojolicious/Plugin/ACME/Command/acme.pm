@@ -13,7 +13,7 @@ use Crypt::OpenSSL::RSA;
 use Crypt::OpenSSL::Bignum; # get_key_parameters
 use Crypt::OpenSSL::PKCS10;
 use Digest::SHA 'sha256';
-use MIME::Base64 qw/encode_base64url/;
+use MIME::Base64 qw/encode_base64url encode_base64 decode_base64/;
 use Scalar::Util;
 
 has account_file => 'account.key';
@@ -113,11 +113,25 @@ sub run {
       die Mojo::Util::dumper($err) if $err;
       my $bad = c(values %{ $command->tokens })->grep(sub { $_->{challenge}{status} ne 'valid' });
       die 'The following challenges were not validated ' . Mojo::Util::dumper($bad->to_array) if $bad->size;
+      print $command->get_cert('jberger.pl');
     },
   )->wait;
   #die 'Register failed' unless $command->register;
   #Mojo::Util::spurt($command->generate_csr(qw/jberger.pl *.jberger.pl/) => 'out.csr');
   #say $command->thumbprint;
+}
+
+sub get_cert {
+  my ($command, @names) = @_;
+  my $csr = _pem_to_der($command->generate_csr(@names));
+  my $req = $command->signed_request({
+    resource => 'new-cert',
+    csr => encode_base64url($csr),
+  });
+  my $url = $command->ca->clone->path('/acme/new-cert');
+  my $tx = $command->ua->post($url, $req);
+  die 'failed to get cert' unless $tx->success;
+  return _der_to_pem($tx->res->body);
 }
 
 sub get_nonce {
@@ -139,6 +153,19 @@ sub generate_csr {
   $req->add_ext_final;
   $req->sign;
   return $req->get_pem_req;
+}
+
+sub _pem_to_der {
+  my $cert = shift;
+  $cert =~ s/^-{5}.*$//mg;
+  return decode_base64(Mojo::Util::trim($cert));
+}
+
+sub _der_to_pem {
+  my $der = shift;
+  my $pem = encode_base64($der, '');
+  $pem =~ s!(.{1,64})!$1\n!g; # stolen from Convert::PEM
+  return sprintf "-----BEGIN CERTIFICATE-----\n%s-----END CERTIFICATE-----\n", $pem;
 }
 
 sub keyauth {
