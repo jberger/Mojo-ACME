@@ -2,237 +2,29 @@ package Mojolicious::Plugin::ACME::Command::acme;
 
 use Mojo::Base 'Mojolicious::Command';
 
+use Mojo::ACME;
 use Mojo::Collection 'c';
-use Mojo::JSON qw/encode_json/;
-use Mojo::Server::Daemon;
-use Mojo::URL;
-use Mojo::Util qw/dumper slurp/;
-use Mojolicious;
-
-use Crypt::OpenSSL::RSA;
-use Crypt::OpenSSL::Bignum; # get_key_parameters
-use Crypt::OpenSSL::PKCS10;
-use Digest::SHA 'sha256';
-use MIME::Base64 qw/encode_base64url encode_base64 decode_base64/;
-use Scalar::Util;
-
-has account_file => 'account.key';
-has account_key => sub { Crypt::OpenSSL::RSA->new_private_key(slurp(shift->account_file)) };
-has account_pub => sub { Crypt::OpenSSL::RSA->new_public_key(shift->account_key->get_public_key_string) };
-has ca => sub { Mojo::URL->new('https://acme-staging.api.letsencrypt.org') };
-has header => sub {
-  my ($n, $e) = shift->account_pub->get_key_parameters;
-  return {
-    alg => 'RS256',
-    jwk => {
-      kty => 'RSA',
-      e => encode_base64url($e->to_bin),
-      n => encode_base64url($n->to_bin),
-    },
-  };
-};
-has server => sub {
-  my $command = shift;
-  my $app = Mojolicious->new;
-  my $server = Mojo::Server::Daemon->new(
-    app    => $app,
-    listen => [$command->app->config('acme')->{client_url}],
-  );
-  Scalar::Util::weaken $command;
-  $app->routes->get('/:token' => sub {
-    my $c = shift;
-    my $token = $c->stash('token');
-    return $c->reply->not_found
-      unless my $cb = delete $command->tokens->{$token}{cb};
-    $c->on(finish => sub { $command->$cb($token) });
-    $c->render(text => $command->keyauth($token));
-  });
-  return $server->start;
-};
-has thumbprint => sub {
-  my $jwk = shift->header->{jwk};
-  # manually format json for sorted keys
-  my $fmt = '{"e":"%s","kty":"%s","n":"%s"}';
-  my $json = sprintf $fmt, @{$jwk}{qw/e kty n/};
-  return encode_base64url( sha256($json) );
-};
-has tokens => sub { {} };
-has ua => sub { Mojo::UserAgent->new };
 
 sub run {
   my ($command, @args) = @_;
+  my $acme = Mojo::ACME->new(
+    server_url => $command->app->config('acme')->{client_url},
+  );
 
   Mojo::IOLoop->delay(
-    sub { $command->new_authz('jberger.pl' => shift->begin) },
-    sub { $command->check_all_challenges(shift->begin) },
+    sub { $acme->new_authz('jberger.pl' => shift->begin) },
+    sub { $acme->check_all_challenges(shift->begin) },
     sub {
       my ($delay, $err) = @_;
       die Mojo::Util::dumper($err) if $err;
-      my $bad = c(values %{ $command->tokens })->grep(sub { $_->{challenge}{status} ne 'valid' });
+      my $bad = c(values %{ $acme->tokens })->grep(sub { $_->{challenge}{status} ne 'valid' });
       die 'The following challenges were not validated ' . Mojo::Util::dumper($bad->to_array) if $bad->size;
-      print $command->get_cert('jberger.pl');
+      print $acme->get_cert('jberger.pl');
     },
   )->wait;
-  #die 'Register failed' unless $command->register;
-  #Mojo::Util::spurt($command->generate_csr(qw/jberger.pl *.jberger.pl/) => 'out.csr');
-  #say $command->thumbprint;
-}
-
-sub check_all_challenges {
-  my ($command, $cb) = (shift, pop);
-  my @tokens = $command->pending_tokens->each;
-  Mojo::IOLoop->delay(
-    sub {
-      my $delay = shift;
-      $command->check_challenge_status($_, $delay->begin) for @tokens;
-    },
-    sub {
-      my $delay = shift;
-      if (my $err = c(@_)->first(sub{ ref })) { return $command->$cb($err) }
-      return $command->$cb(undef) unless $command->pending_tokens->size;
-      Mojo::IOLoop->timer(2 => $delay->begin);
-    },
-    sub { $command->check_all_challenges($cb) },
-  );
-}
-
-sub check_challenge_status {
-  my ($command, $token, $cb) = @_;
-  return Mojo::IOLoop->next_tick(sub{ $command->$cb({token => $token, message => 'unknown token'}) })
-    unless my $challenge = $command->tokens->{$token};
-  my $ua = $command->ua;
-  $ua->get($challenge->{challenge}{uri} => sub {
-    my ($ua, $tx) = @_;
-    my $err;
-    if (my $res = $tx->success) {
-      $command->tokens->{$token}{challenge} = $res->json;
-    } else {
-      $err = $tx->error;
-      $err->{token} = $token;
-    }
-    $command->$cb($err);
-  });
-}
-
-sub get_cert {
-  my ($command, @names) = @_;
-  my $csr = _pem_to_der($command->generate_csr(@names));
-  my $req = $command->signed_request({
-    resource => 'new-cert',
-    csr => encode_base64url($csr),
-  });
-  my $url = $command->ca->clone->path('/acme/new-cert');
-  my $tx = $command->ua->post($url, $req);
-  die 'failed to get cert' unless $tx->success;
-  return _der_to_cert($tx->res->body);
-}
-
-sub get_nonce {
-  my $command = shift;
-  my $url = $command->ca->clone->path('/directory');
-  $command->ua->get($url)->res->headers->header('Replay-Nonce');
-}
-
-sub generate_csr {
-  my ($command, $primary, @alts) = @_;
-
-  my $rsa = Crypt::OpenSSL::RSA->generate_key(4096);
-  my $req = Crypt::OpenSSL::PKCS10->new_from_rsa($rsa);
-  $req->set_subject("/CN=$primary");
-  if (@alts) {
-    my $alt = join ',', map { "DNS:$_" } ($primary, @alts);
-    $req->add_ext(Crypt::OpenSSL::PKCS10::NID_subject_alt_name, $alt);
-  }
-  $req->add_ext_final;
-  $req->sign;
-  return $req->get_pem_req;
-}
-
-sub keyauth {
-  my ($command, $token) = @_;
-  return $token . '.' . $command->thumbprint;
-}
-
-sub new_authz {
-  my ($command, $value, $cb) = @_;
-  my $url = $command->ca->clone->path('/acme/new-authz');
-  my $req = $command->signed_request({
-    resource => 'new-authz',
-    identifier => {
-      type  => 'dns',
-      value => $value,
-    },
-  });
-  my $tx = $command->ua->post($url, $req);
-  die 'Error requesting challenges' unless $tx->res->code == 201;
-
-  my $challenges = $tx->res->json('/challenges') || [];
-  die 'No http challenge available'
-    unless my $challenge = c(@$challenges)->first(sub{ $_->{type} eq 'http-01' });
-
-  my $token = $challenge->{token};
-  $command->tokens->{$token} = {
-    cb => $cb,
-    challenge => $challenge,
-  };
-  $command->server; #ensure server started
-
-  my $trigger = $command->signed_request({
-    resource => 'challenge',
-    keyAuthorization => $command->keyauth($token),
-  });
-  die 'Error triggering challenge'
-    unless $command->ua->post($challenge->{uri}, $trigger)->res->code == 202;
-}
-
-sub pending_tokens {
-  my $command = shift;
-  c(values %{ $command->tokens })
-    ->grep(sub{ $_->{challenge}{status} eq 'pending' })
-    ->map(sub{ $_->{challenge}{token} })
-}
-
-sub register {
-  my $command = shift;
-  my $url = $command->ca->clone->path('/acme/new-reg');
-  my $req = $command->signed_request({
-    resource => 'new-reg',
-    agreement => 'https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf',
-  });
-  my $code = $command->ua->post($url, $req)->res->code;
-  return $code == 201 || $code == 409;
-}
-
-sub signed_request {
-  my ($command, $payload) = @_;
-  $payload = encode_base64url(encode_json($payload));
-  my $key = $command->account_key;
-  $key->use_sha256_hash;
-  my $header = $command->header;
-  my $protected = do {
-    local $header->{nonce} = $command->get_nonce;
-    encode_base64url(encode_json($header));
-  };
-  my $sig = encode_base64url($key->sign("$protected.$payload"));
-  return encode_json {
-    header    => $header,
-    payload   => $payload,
-    protected => $protected,
-    signature => $sig,
-  };
-}
-
-sub _pem_to_der {
-  my $cert = shift;
-  $cert =~ s/^-{5}.*$//mg;
-  return decode_base64(Mojo::Util::trim($cert));
-}
-
-sub _der_to_cert {
-  my $der = shift;
-  my $pem = encode_base64($der, '');
-  $pem =~ s!(.{1,64})!$1\n!g; # stolen from Convert::PEM
-  return sprintf "-----BEGIN CERTIFICATE-----\n%s-----END CERTIFICATE-----\n", $pem;
+  #die 'Register failed' unless $acme->register;
+  #Mojo::Util::spurt($acme->generate_csr(qw/jberger.pl *.jberger.pl/) => 'out.csr');
+  #say $acme->thumbprint;
 }
 
 1;
