@@ -23,7 +23,7 @@ sub register {
       sub {
         my ($delay, $tx) = @_;
         return $c->reply->not_found unless $tx->success;
-        $c->render(text => $tx->res->body);
+        $c->render(data => $tx->res->body);
       },
     );
   });

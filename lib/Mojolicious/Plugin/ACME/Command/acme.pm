@@ -44,8 +44,8 @@ has server => sub {
     my $token = $c->stash('token');
     return $c->reply->not_found
       unless my $cb = delete $command->tokens->{$token};
+    $c->on(finish => sub { $command->$cb($token) });
     $c->render(text => $command->keyauth($token));
-    $command->$cb($token);
   });
   return $server->start;
 };
