@@ -17,7 +17,7 @@ sub run {
     sub {
       my ($delay, $err) = @_;
       die Mojo::Util::dumper($err) if $err;
-      my $bad = c(values %{ $acme->tokens })->grep(sub { $_->{challenge}{status} ne 'valid' });
+      my $bad = c(values %{ $acme->tokens })->grep(sub { $_->{status} ne 'valid' });
       die 'The following challenges were not validated ' . Mojo::Util::dumper($bad->to_array) if $bad->size;
       print $acme->get_cert('jberger.pl');
     },

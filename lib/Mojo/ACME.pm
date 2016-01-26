@@ -43,7 +43,7 @@ has server => sub {
     my $c = shift;
     my $token = $c->stash('token');
     return $c->reply->not_found
-      unless my $cb = delete $self->tokens->{$token}{cb};
+      unless my $cb = delete $self->{callbacks}{$token};
     $c->on(finish => sub { $self->$cb($token) });
     $c->render(text => $self->keyauth($token));
   });
@@ -83,11 +83,11 @@ sub check_challenge_status {
   return Mojo::IOLoop->next_tick(sub{ $self->$cb({token => $token, message => 'unknown token'}) })
     unless my $challenge = $self->tokens->{$token};
   my $ua = $self->ua;
-  $ua->get($challenge->{challenge}{uri} => sub {
+  $ua->get($challenge->{uri} => sub {
     my ($ua, $tx) = @_;
     my $err;
     if (my $res = $tx->success) {
-      $self->tokens->{$token}{challenge} = $res->json;
+      $self->tokens->{$token} = $res->json;
     } else {
       $err = $tx->error;
       $err->{token} = $token;
@@ -153,10 +153,8 @@ sub new_authz {
     unless my $challenge = c(@$challenges)->first(sub{ $_->{type} eq 'http-01' });
 
   my $token = $challenge->{token};
-  $self->tokens->{$token} = {
-    cb => $cb,
-    challenge => $challenge,
-  };
+  $self->tokens->{$token} = $challenge;
+  $self->{callbacks}{$token} = $cb;
   $self->server; #ensure server started
 
   my $trigger = $self->signed_request({
@@ -170,8 +168,8 @@ sub new_authz {
 sub pending_tokens {
   my $self = shift;
   c(values %{ $self->tokens })
-    ->grep(sub{ $_->{challenge}{status} eq 'pending' })
-    ->map(sub{ $_->{challenge}{token} })
+    ->grep(sub{ $_->{status} eq 'pending' })
+    ->map(sub{ $_->{token} })
 }
 
 sub register {
