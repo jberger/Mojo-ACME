@@ -59,21 +59,28 @@ has thumbprint => sub {
 has tokens => sub { {} };
 has ua => sub { Mojo::UserAgent->new };
 
+sub pending_tokens {
+  my $command = shift;
+  c(values %{ $command->tokens })
+    ->grep(sub{ $_->{challenge}{status} eq 'pending' })
+    ->map(sub{ $_->{challenge}{token} })
+}
+
 sub check_all_challenges {
   my ($command, $cb) = (shift, pop);
-  my $tokens = shift || c(keys %{ $command->tokens });
+  my @tokens = $command->pending_tokens->each;
   Mojo::IOLoop->delay(
     sub {
       my $delay = shift;
-      $command->check_challenge_status($_, $delay->begin) for @$tokens;
+      $command->check_challenge_status($_, $delay->begin) for @tokens;
     },
     sub {
       my $delay = shift;
-      my $tokens = c(@_)->compact;
-      return $command->$cb(undef) unless $tokens->size; # nothing left to check
-      if (my $err = $tokens->first(sub{ ref })) { return $command->$cb($err) }
-      $command->check_all_challenges($tokens, $cb);
-    }
+      if (my $err = c(@_)->first(sub{ ref })) { return $command->$cb($err) }
+      return $command->$cb(undef) unless $command->pending_tokens->size;
+      Mojo::IOLoop->timer(2 => $delay->begin);
+    },
+    sub { $command->check_all_challenges($cb) },
   );
 }
 
@@ -82,20 +89,16 @@ sub check_challenge_status {
   return Mojo::IOLoop->next_tick(sub{ $command->$cb({token => $token, message => 'unknown token'}) })
     unless my $challenge = $command->tokens->{$token};
   my $ua = $command->ua;
-  $ua->get($challenge->{uri} => sub {
+  $ua->get($challenge->{challenge}{uri} => sub {
     my ($ua, $tx) = @_;
-    my $ret;
+    my $err;
     if (my $res = $tx->success) {
-      my $status = $res->json('/status');
-      if ($status eq 'pending') { $ret = $token }
-      elsif ($status ne 'valid') {
-        $ret = {token => $token, message => 'challenge failed'}
-      }
+      $command->tokens->{$token}{challenge} = $res->json;
     } else {
-      $ret = $tx->error;
-      $ret->{token} = $token;
+      $err = $tx->error;
+      $err->{token} = $token;
     }
-    $command->$cb($ret);
+    $command->$cb($err);
   });
 }
 
@@ -107,8 +110,9 @@ sub run {
     sub { $command->check_all_challenges(shift->begin) },
     sub {
       my ($delay, $err) = @_;
-      return print Mojo::Util::dumper($err) if $err;
-      print 'success';
+      die Mojo::Util::dumper($err) if $err;
+      my $bad = c(values %{ $command->tokens })->grep(sub { $_->{challenge}{status} ne 'valid' });
+      die 'The following challenges were not validated ' . Mojo::Util::dumper($bad->to_array) if $bad->size;
     },
   )->wait;
   #die 'Register failed' unless $command->register;
@@ -160,8 +164,10 @@ sub new_authz {
     unless my $challenge = c(@$challenges)->first(sub{ $_->{type} eq 'http-01' });
 
   my $token = $challenge->{token};
-  $challenge->{cb} = $cb;
-  $command->tokens->{$token} = $challenge;
+  $command->tokens->{$token} = {
+    cb => $cb,
+    challenge => $challenge,
+  };
   $command->server; #ensure server started
 
   my $trigger = $command->signed_request({
