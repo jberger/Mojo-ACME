@@ -59,11 +59,23 @@ has thumbprint => sub {
 has tokens => sub { {} };
 has ua => sub { Mojo::UserAgent->new };
 
-sub pending_tokens {
-  my $command = shift;
-  c(values %{ $command->tokens })
-    ->grep(sub{ $_->{challenge}{status} eq 'pending' })
-    ->map(sub{ $_->{challenge}{token} })
+sub run {
+  my ($command, @args) = @_;
+
+  Mojo::IOLoop->delay(
+    sub { $command->new_authz('jberger.pl' => shift->begin) },
+    sub { $command->check_all_challenges(shift->begin) },
+    sub {
+      my ($delay, $err) = @_;
+      die Mojo::Util::dumper($err) if $err;
+      my $bad = c(values %{ $command->tokens })->grep(sub { $_->{challenge}{status} ne 'valid' });
+      die 'The following challenges were not validated ' . Mojo::Util::dumper($bad->to_array) if $bad->size;
+      print $command->get_cert('jberger.pl');
+    },
+  )->wait;
+  #die 'Register failed' unless $command->register;
+  #Mojo::Util::spurt($command->generate_csr(qw/jberger.pl *.jberger.pl/) => 'out.csr');
+  #say $command->thumbprint;
 }
 
 sub check_all_challenges {
@@ -102,25 +114,6 @@ sub check_challenge_status {
   });
 }
 
-sub run {
-  my ($command, @args) = @_;
-
-  Mojo::IOLoop->delay(
-    sub { $command->new_authz('jberger.pl' => shift->begin) },
-    sub { $command->check_all_challenges(shift->begin) },
-    sub {
-      my ($delay, $err) = @_;
-      die Mojo::Util::dumper($err) if $err;
-      my $bad = c(values %{ $command->tokens })->grep(sub { $_->{challenge}{status} ne 'valid' });
-      die 'The following challenges were not validated ' . Mojo::Util::dumper($bad->to_array) if $bad->size;
-      print $command->get_cert('jberger.pl');
-    },
-  )->wait;
-  #die 'Register failed' unless $command->register;
-  #Mojo::Util::spurt($command->generate_csr(qw/jberger.pl *.jberger.pl/) => 'out.csr');
-  #say $command->thumbprint;
-}
-
 sub get_cert {
   my ($command, @names) = @_;
   my $csr = _pem_to_der($command->generate_csr(@names));
@@ -131,7 +124,7 @@ sub get_cert {
   my $url = $command->ca->clone->path('/acme/new-cert');
   my $tx = $command->ua->post($url, $req);
   die 'failed to get cert' unless $tx->success;
-  return _der_to_pem($tx->res->body);
+  return _der_to_cert($tx->res->body);
 }
 
 sub get_nonce {
@@ -153,19 +146,6 @@ sub generate_csr {
   $req->add_ext_final;
   $req->sign;
   return $req->get_pem_req;
-}
-
-sub _pem_to_der {
-  my $cert = shift;
-  $cert =~ s/^-{5}.*$//mg;
-  return decode_base64(Mojo::Util::trim($cert));
-}
-
-sub _der_to_pem {
-  my $der = shift;
-  my $pem = encode_base64($der, '');
-  $pem =~ s!(.{1,64})!$1\n!g; # stolen from Convert::PEM
-  return sprintf "-----BEGIN CERTIFICATE-----\n%s-----END CERTIFICATE-----\n", $pem;
 }
 
 sub keyauth {
@@ -205,6 +185,13 @@ sub new_authz {
     unless $command->ua->post($challenge->{uri}, $trigger)->res->code == 202;
 }
 
+sub pending_tokens {
+  my $command = shift;
+  c(values %{ $command->tokens })
+    ->grep(sub{ $_->{challenge}{status} eq 'pending' })
+    ->map(sub{ $_->{challenge}{token} })
+}
+
 sub register {
   my $command = shift;
   my $url = $command->ca->clone->path('/acme/new-reg');
@@ -233,6 +220,19 @@ sub signed_request {
     protected => $protected,
     signature => $sig,
   };
+}
+
+sub _pem_to_der {
+  my $cert = shift;
+  $cert =~ s/^-{5}.*$//mg;
+  return decode_base64(Mojo::Util::trim($cert));
+}
+
+sub _der_to_cert {
+  my $der = shift;
+  my $pem = encode_base64($der, '');
+  $pem =~ s!(.{1,64})!$1\n!g; # stolen from Convert::PEM
+  return sprintf "-----BEGIN CERTIFICATE-----\n%s-----END CERTIFICATE-----\n", $pem;
 }
 
 1;
