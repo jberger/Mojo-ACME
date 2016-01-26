@@ -15,6 +15,7 @@ use Crypt::OpenSSL::PKCS10;
 use Digest::SHA 'sha256';
 use MIME::Base64 qw/encode_base64url/;
 use Scalar::Util;
+use v5.16;
 
 has account_file => 'account.key';
 has account_key => sub { Crypt::OpenSSL::RSA->new_private_key(slurp(shift->account_file)) };
@@ -43,7 +44,7 @@ has server => sub {
     my $c = shift;
     my $token = $c->stash('token');
     return $c->reply->not_found
-      unless my $cb = delete $command->tokens->{$token};
+      unless my $cb = delete $command->tokens->{$token}{cb};
     $c->on(finish => sub { $command->$cb($token) });
     $c->render(text => $command->keyauth($token));
   });
@@ -59,11 +60,58 @@ has thumbprint => sub {
 has tokens => sub { {} };
 has ua => sub { Mojo::UserAgent->new };
 
+sub check_all_challenges {
+  my ($command, $cb) = @_;
+  my @tokens = keys %{ $command->tokens };
+  my $ua = $command->ua;
+
+  my $err;
+  my $delay = Mojo::IOLoop->delay;
+  $delay->on(finish => sub { $command->$cb($err) });
+  $delay->steps(sub { 
+    my $delay = shift;
+    my $tokens = c(@_)->compact;
+    return unless $tokens->size; # nothing left to check
+    return if $err = $tokens->first(sub{ ref }); # got an error
+    push @{ $delay->remaining }, __SUB__; # guess we'll do this again
+    $ua->check_challenge_status($_, $delay->begin) for @$tokens; # get started
+  });
+  $delay->ioloop->next_tick(sub{ $delay->pass(@tokens) });
+}
+
+sub check_challenge_status {
+  my ($command, $token, $cb) = @_;
+  return Mojo::IOLoop->next_tick(sub{ $command->$cb({token => $token, message => 'unknown token'}) }) 
+    unless my $challenge = $command->tokens->{$token};
+  my $ua = $command->ua;
+  $ua->get($challenge->{uri} => sub {
+    my ($ua, $tx) = @_;
+    my $ret;
+    if (my $res = $tx->success) {
+      my $status = $res->json('/status');
+      if ($status eq 'pending') { $ret = $token }
+      elsif ($status ne 'valid') { 
+        $ret = {token => $token, message => 'challenge failed'}
+      }
+    } else {
+      $ret = $tx->error;
+      $ret->{token} = $token;
+    }
+    $command->$cb($ret);
+  });
+}
+
 sub run {
   my ($command, @args) = @_;
 
   Mojo::IOLoop->delay(
     sub { $command->new_authz('jberger.pl' => shift->begin) },
+    sub { $command->check_all_challenges(shift->begin) },
+    sub { 
+      my ($delay, $err) = @_;
+      return print Mojo::Util::dumper($err) if $err;
+      print 'success';
+    },
   )->wait;
   #die 'Register failed' unless $command->register;
   #Mojo::Util::spurt($command->generate_csr(qw/jberger.pl *.jberger.pl/) => 'out.csr');
@@ -114,7 +162,10 @@ sub new_authz {
     unless my $http = c(@$challenges)->first(sub{ $_->{type} eq 'http-01' });
 
   my $token = $http->{token};
-  $command->tokens->{$token} = $cb;
+  $command->tokens->{$token} = {
+    cb => $cb,
+    challenge => $http,
+  };
   $command->server; #ensure server started
 
   my $trigger = $command->signed_request({
