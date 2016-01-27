@@ -57,21 +57,21 @@ has thumbprint => sub {
   my $json = sprintf $fmt, @{$jwk}{qw/e kty n/};
   return encode_base64url( sha256($json) );
 };
-has tokens => sub { {} };
+has challenges => sub { {} };
 has ua => sub { Mojo::UserAgent->new };
 
 sub check_all_challenges {
   my ($self, $cb) = (shift, pop);
-  my @tokens = $self->pending_tokens->each;
+  my @pending = $self->pending_challenges->each;
   Mojo::IOLoop->delay(
     sub {
       my $delay = shift;
-      $self->check_challenge_status($_, $delay->begin) for @tokens;
+      $self->check_challenge_status($_, $delay->begin) for @pending;
     },
     sub {
       my $delay = shift;
       if (my $err = c(@_)->first(sub{ ref })) { return $self->$cb($err) }
-      return $self->$cb(undef) unless $self->pending_tokens->size;
+      return $self->$cb(undef) unless $self->pending_challenges->size;
       Mojo::IOLoop->timer(2 => $delay->begin);
     },
     sub { $self->check_all_challenges($cb) },
@@ -81,13 +81,13 @@ sub check_all_challenges {
 sub check_challenge_status {
   my ($self, $token, $cb) = @_;
   return Mojo::IOLoop->next_tick(sub{ $self->$cb({token => $token, message => 'unknown token'}) })
-    unless my $challenge = $self->tokens->{$token};
+    unless my $challenge = $self->challenges->{$token};
   my $ua = $self->ua;
   $ua->get($challenge->{uri} => sub {
     my ($ua, $tx) = @_;
     my $err;
     if (my $res = $tx->success) {
-      $self->tokens->{$token} = $res->json;
+      $self->challenges->{$token} = $res->json;
     } else {
       $err = $tx->error;
       $err->{token} = $token;
@@ -153,7 +153,7 @@ sub new_authz {
     unless my $challenge = c(@$challenges)->first(sub{ $_->{type} eq 'http-01' });
 
   my $token = $challenge->{token};
-  $self->tokens->{$token} = $challenge;
+  $self->challenges->{$token} = $challenge;
   $self->{callbacks}{$token} = $cb;
   $self->server; #ensure server started
 
@@ -165,9 +165,9 @@ sub new_authz {
     unless $self->ua->post($challenge->{uri}, $trigger)->res->code == 202;
 }
 
-sub pending_tokens {
+sub pending_challenges {
   my $self = shift;
-  c(values %{ $self->tokens })
+  c(values %{ $self->challenges })
     ->grep(sub{ $_->{status} eq 'pending' })
     ->map(sub{ $_->{token} })
 }
@@ -181,8 +181,8 @@ sub register {
   });
   my $code = $self->ua->post($url, $req)->res->code;
   return
-    $code == 201 ? 'Created' :
-    $code == 409 ? 'Exists' :
+    $code == 201 ? 'Account Created' :
+    $code == 409 ? 'Account Exists' :
                    undef;
 }
 
