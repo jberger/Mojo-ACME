@@ -6,31 +6,20 @@ use Mojo::Collection 'c';
 use Mojo::JSON qw/encode_json/;
 use Mojo::Server::Daemon;
 use Mojo::URL;
-use Mojo::Util qw/dumper slurp/;
 use Mojolicious;
 
-use Crypt::OpenSSL::RSA;
-use Crypt::OpenSSL::Bignum; # get_key_parameters
 use Crypt::OpenSSL::PKCS10;
-use Digest::SHA 'sha256';
 use MIME::Base64 qw/encode_base64url encode_base64 decode_base64/;
 use Scalar::Util;
 
-has account_file => 'account.key';
-has account_key => sub { Crypt::OpenSSL::RSA->new_private_key(slurp(shift->account_file)) };
-has account_pub => sub { Crypt::OpenSSL::RSA->new_public_key(shift->account_key->get_public_key_string) };
+use Mojo::ACME::Key;
+
+has account_key => sub { Mojo::ACME::Key->new(path => 'account.key') };
 has ca => sub { Mojo::URL->new('https://acme-v01.api.letsencrypt.org') };
-has header => sub {
-  my ($n, $e) = shift->account_pub->get_key_parameters;
-  return {
-    alg => 'RS256',
-    jwk => {
-      kty => 'RSA',
-      e => encode_base64url($e->to_bin),
-      n => encode_base64url($n->to_bin),
-    },
-  };
-};
+has challenges => sub { {} };
+#TODO use cert_key->key if it exists
+has cert_key => sub { Mojo::ACME::Key->new->tap('generate') };
+
 has server => sub {
   my $self = shift;
   my $app = Mojolicious->new;
@@ -49,15 +38,8 @@ has server => sub {
   });
   return $server->start;
 };
+
 has server_url => 'http://127.0.0.1:5000';
-has thumbprint => sub {
-  my $jwk = shift->header->{jwk};
-  # manually format json for sorted keys
-  my $fmt = '{"e":"%s","kty":"%s","n":"%s"}';
-  my $json = sprintf $fmt, @{$jwk}{qw/e kty n/};
-  return encode_base64url( sha256($json) );
-};
-has challenges => sub { {} };
 has ua => sub { Mojo::UserAgent->new };
 
 sub check_all_challenges {
@@ -118,7 +100,7 @@ sub get_nonce {
 sub generate_csr {
   my ($self, $primary, @alts) = @_;
 
-  my $rsa = Crypt::OpenSSL::RSA->generate_key(4096);
+  my $rsa = $self->cert_key->key;
   my $req = Crypt::OpenSSL::PKCS10->new_from_rsa($rsa);
   $req->set_subject("/CN=$primary");
   if (@alts) {
@@ -132,7 +114,7 @@ sub generate_csr {
 
 sub keyauth {
   my ($self, $token) = @_;
-  return $token . '.' . $self->thumbprint;
+  return $token . '.' . $self->account_key->thumbprint;
 }
 
 sub new_authz {
@@ -190,12 +172,18 @@ sub signed_request {
   my ($self, $payload) = @_;
   $payload = encode_base64url(encode_json($payload));
   my $key = $self->account_key;
-  $key->use_sha256_hash;
-  my $header = $self->header;
+  my $jwk = $key->jwk;
+
+  my $header = {
+    alg => 'RS256',
+    jwk => {%$jwk}, # clone the jwk for safety's sake
+  };
+
   my $protected = do {
     local $header->{nonce} = $self->get_nonce;
     encode_base64url(encode_json($header));
   };
+
   my $sig = encode_base64url($key->sign("$protected.$payload"));
   return encode_json {
     header    => $header,
