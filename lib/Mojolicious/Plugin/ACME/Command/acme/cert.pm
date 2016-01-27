@@ -10,6 +10,7 @@ END
 
 has message    => sub { shift->extract_usage . "\nCommands:\n" };
 has namespaces => sub { [__PACKAGE__] };
+has usage => sub { $_[0]->extract_usage . $_[0]->hint };
 
 1;
 
