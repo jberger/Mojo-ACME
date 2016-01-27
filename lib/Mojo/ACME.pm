@@ -19,7 +19,7 @@ use Scalar::Util;
 has account_file => 'account.key';
 has account_key => sub { Crypt::OpenSSL::RSA->new_private_key(slurp(shift->account_file)) };
 has account_pub => sub { Crypt::OpenSSL::RSA->new_public_key(shift->account_key->get_public_key_string) };
-has ca => sub { Mojo::URL->new('https://acme-staging.api.letsencrypt.org') };
+has ca => sub { Mojo::URL->new('https://acme-v01.api.letsencrypt.org') };
 has header => sub {
   my ($n, $e) = shift->account_pub->get_key_parameters;
   return {
@@ -180,7 +180,10 @@ sub register {
     agreement => 'https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf',
   });
   my $code = $self->ua->post($url, $req)->res->code;
-  return $code == 201 || $code == 409;
+  return
+    $code == 201 ? 'Created' :
+    $code == 409 ? 'Exists' :
+                   undef;
 }
 
 sub signed_request {
