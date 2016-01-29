@@ -9,10 +9,23 @@ use Crypt::OpenSSL::Bignum; # get_key_parameters
 use Digest::SHA 'sha256';
 use MIME::Base64 'encode_base64url';
 
+has 'generated';
+has string => sub { shift->tap('key')->{string} };
+has key => sub {
+  my $self = shift;
+  my $path = $self->path;
+  my $rsa;
+  if ($path && -e $path) {
+    $self->{string} = Mojo::Util::slurp($path);
+    $rsa = Crypt::OpenSSL::RSA->new_private_key($self->{string})
+  } else {
+    $self->generated(1);
+    $rsa = Crypt::OpenSSL::RSA->generate_key(4096);
+    $self->{string} = $rsa->get_private_key_string;
+  }
+  return $rsa;
+};
 has 'path';
-has file_contents => sub { Mojo::Util::slurp(shift->path) };
-
-has key => sub { Crypt::OpenSSL::RSA->new_private_key(shift->file_contents) };
 has pub => sub { Crypt::OpenSSL::RSA->new_public_key(shift->key->get_public_key_string) };
 
 has jwk => sub {
@@ -31,13 +44,6 @@ has thumbprint => sub {
   my $json = sprintf $fmt, @{$jwk}{qw/e kty n/};
   return encode_base64url( sha256($json) );
 };
-
-sub generate {
-  my $self = shift;
-  #TODO check for existing key and fail if exists
-  my $key = Crypt::OpenSSL::RSA->generate_key(4096);
-  return $self->key($key)->key;
-}
 
 sub sign {
   my ($self, $content) = @_;

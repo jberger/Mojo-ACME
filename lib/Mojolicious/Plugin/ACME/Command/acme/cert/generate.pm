@@ -51,10 +51,10 @@ sub run {
 
   die 'No cert was generated' unless $cert;
 
-  unless ($acme->cert_key->file_contents) { # if $acme->cert_key->was_generated
+  if ($acme->cert_key->generated) {
     my $key_path = "$name.key";
     say "Writing $key_path";
-    spurt $acme->cert_key->get_private_key_string => $key_path;
+    spurt $acme->cert_key->string => $key_path;
   }
 
   my $cert_path = "$name.crt";

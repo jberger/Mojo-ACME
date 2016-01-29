@@ -18,7 +18,7 @@ has account_key => sub { Mojo::ACME::Key->new(path => 'account.key') };
 has ca => sub { Mojo::URL->new('https://acme-v01.api.letsencrypt.org') };
 has challenges => sub { {} };
 #TODO use cert_key->key if it exists
-has cert_key => sub { Mojo::ACME::Key->new->tap('generate') };
+has cert_key => sub { Mojo::ACME::Key->new };
 
 has server => sub {
   my $self = shift;
