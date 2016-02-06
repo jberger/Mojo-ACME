@@ -11,7 +11,7 @@ sub build_acme {
   my ($c, $args) = @_;
   my $acme = Mojo::ACME->new(secret => $c->app->secrets->[0]);
   GetOptionsFromArray( $args,
-    'account-key|a=s' => sub { $acme->account_file($_[1]) },
+    'account-key|a=s' => sub { $acme->account_key->path($_[1]) },
     'ca-url|c=s' => \my $ca,
     'test|t' => \my $test,
   );
