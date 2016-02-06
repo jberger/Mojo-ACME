@@ -10,18 +10,17 @@ use Digest::SHA 'sha256';
 use MIME::Base64 'encode_base64url';
 
 has 'generated';
-has string => sub { shift->tap('key')->{string} };
+has string => sub { shift->key->get_private_key_string };
 has key => sub {
   my $self = shift;
   my $path = $self->path;
   my $rsa;
   if ($path && -e $path) {
-    $self->{string} = Mojo::Util::slurp($path);
-    $rsa = Crypt::OpenSSL::RSA->new_private_key($self->{string})
+    my $string = Mojo::Util::slurp($path);
+    $rsa = Crypt::OpenSSL::RSA->new_private_key($string)
   } else {
     $self->generated(1);
     $rsa = Crypt::OpenSSL::RSA->generate_key(4096);
-    $self->{string} = $rsa->get_private_key_string;
   }
   return $rsa;
 };
@@ -44,6 +43,10 @@ has thumbprint => sub {
   my $json = sprintf $fmt, @{$jwk}{qw/e kty n/};
   return encode_base64url( sha256($json) );
 };
+
+# TODO remove this once https://rt.cpan.org/Ticket/Display.html?id=111829&results=dcfe848f59fceab0efed819d62b70447
+# is resolved and dependency on PKCS10 is bumped
+sub key_clone { Crypt::OpenSSL::RSA->new_private_key(shift->string) }
 
 sub sign {
   my ($self, $content) = @_;

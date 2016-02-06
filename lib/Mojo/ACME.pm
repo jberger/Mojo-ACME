@@ -111,7 +111,7 @@ sub get_nonce {
 sub generate_csr {
   my ($self, $primary, @alts) = @_;
 
-  my $rsa = $self->cert_key->key;
+  my $rsa = $self->cert_key->key_clone;
   my $req = Crypt::OpenSSL::PKCS10->new_from_rsa($rsa);
   $req->set_subject("/CN=$primary");
   if (@alts) {
