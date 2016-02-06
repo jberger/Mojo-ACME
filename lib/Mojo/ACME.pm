@@ -308,6 +308,10 @@ Let's Encrypt - L<https://letsencrypt.org/>
 
 ACME Protocol - L<https://github.com/letsencrypt/acme-spec>
 
+=item *
+
+acme-tiny client from which I took a lot of inspiration/direction - L<https://github.com/diafygi/acme-tiny>
+
 =back
 
 
