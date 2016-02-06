@@ -11,6 +11,7 @@ Mojo::ACME - Mojo-based ACME-protocol client
   app->start;
 
   # then on the command line
+  # NOTE! use -t for testing on following
   $ ./myapp.pl acme account register # if necessary
   Writing account.key
   $ ./myapp.pl acme cert generate mydomain.com
