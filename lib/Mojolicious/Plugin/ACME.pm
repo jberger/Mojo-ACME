@@ -38,3 +38,8 @@ sub register {
 
 1;
 
+=head1 NAME
+
+Mojolicious::Plugin::ACME - ACME client integration for your Mojolicious app
+
+
