@@ -6,6 +6,7 @@ use Mojo::Collection 'c';
 use Mojo::JSON qw/encode_json/;
 use Mojo::Server::Daemon;
 use Mojo::URL;
+use Mojo::Util 'hmac_sha1_sum';
 use Mojolicious;
 
 use Crypt::OpenSSL::PKCS10;
@@ -31,14 +32,24 @@ has server => sub {
   $app->routes->get('/:token' => sub {
     my $c = shift;
     my $token = $c->stash('token');
+    my $hmac = $c->req->headers->header('X-HMAC');
+    my $secret = $self->secret;
+
     return $c->reply->not_found
       unless my $cb = delete $self->{callbacks}{$token};
     $c->on(finish => sub { $self->$cb($token) });
-    $c->render(text => $self->keyauth($token));
+
+    return $c->render(text => 'Unauthorized', status => 401)
+      unless $hmac eq hmac_sha1_sum($token, $secret);
+
+    my $auth = $self->keyauth($token);
+    $c->res->headers->header('X-HMAC' => hmac_sha1_sum($auth, $secret));
+    $c->render(text => $auth);
   });
   return $server->start;
 };
 
+has secret => sub { die 'secret is required' };
 has server_url => 'http://127.0.0.1:5000';
 has ua => sub { Mojo::UserAgent->new };
 

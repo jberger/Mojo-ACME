@@ -35,7 +35,7 @@ sub run {
   #never to be challenged and thus @new is not @domains
 
   my @new = grep { $_ !~ /^\*/ } @domains;
-  die 'ACME does not explicitly allow wildcard certs, use --wildcard to override'
+  die "ACME does not explicitly allow wildcard certs, use --wildcard to override\n"
     unless (@new == @domains || $wildcard);
 
   my $intermediate;
@@ -60,9 +60,9 @@ sub run {
       #TODO poll for cert when delayed
       $cert = $acme->get_cert(@domains);
     },
-  )->wait;
+  )->catch(sub{ warn "$_[1]\n" })->wait;
 
-  die 'No cert was generated' unless $cert;
+  die "No cert was generated\n" unless $cert;
 
   if ($acme->cert_key->generated) {
     my $key_path = "$name.key";

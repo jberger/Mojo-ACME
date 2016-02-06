@@ -4,6 +4,7 @@ use Mojo::Base 'Mojolicious::Plugin';
 
 use Mojo::URL;
 use Mojo::UserAgent;
+use Mojo::Util 'hmac_sha1_sum';
 
 sub register {
   my ($plugin, $app) = @_;
@@ -18,12 +19,18 @@ sub register {
   $app->routes->get('/.well-known/acme-challenge/:token' => sub {
     my $c = shift;
     my $token = $c->stash('token');
+    my $secret = $c->app->secrets->[0];
+    my $hmac = hmac_sha1_sum $token, $secret;
     $c->delay(
-      sub { $ua->get($url->clone->path("/$token"), shift->begin) },
+      sub { $ua->get($url->clone->path("/$token"), {'X-HMAC' => $hmac}, shift->begin) },
       sub {
         my ($delay, $tx) = @_;
-        return $c->reply->not_found unless $tx->success;
-        $c->render(data => $tx->res->body);
+        return $c->reply->not_found
+          unless $tx->success && (my $auth = $tx->res->text) && (my $hmac_res = $tx->res->headers->header('X-HMAC'));
+        return $c->reply->not_found
+          unless $hmac_res eq hmac_sha1_sum($auth, $secret);
+
+        $c->render(text => $auth);
       },
     );
   });

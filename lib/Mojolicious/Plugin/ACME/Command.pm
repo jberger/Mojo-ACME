@@ -9,7 +9,7 @@ use Getopt::Long qw(GetOptionsFromArray :config no_ignore_case pass_through); # 
 
 sub build_acme {
   my ($c, $args) = @_;
-  my $acme = Mojo::ACME->new;
+  my $acme = Mojo::ACME->new(secret => $c->app->secrets->[0]);
   GetOptionsFromArray( $args,
     'account-key|a=s' => sub { $acme->account_file($_[1]) },
     'ca-url|c=s' => \my $ca,
