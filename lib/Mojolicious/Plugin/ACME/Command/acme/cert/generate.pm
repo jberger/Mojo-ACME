@@ -71,8 +71,8 @@ Mojolicious::Plugin::ACME::Command::acme::cert::generate - ACME signed certifica
 =head1 SYNOPSIS
 
   Usage: APPLICATION acme cert generate [OPTIONS]
-    myqpp acme cert generate
-    myqpp acme cert generate -t -a myaccount.key
+    myapp acme cert generate mydomain.com
+    myapp acme cert generate -t -a myaccount.key mydomain.com
 
   Options:
 =cut

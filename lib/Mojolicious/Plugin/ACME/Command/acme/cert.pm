@@ -21,8 +21,8 @@ Mojolicious::Plugin::ACME::Command::acme::cert - ACME certificate commands
 =head1 SYNOPSIS
 
   Usage: APPLICATION acme cert COMMAND [OPTIONS]
-    myqpp acme cert generate
-    myqpp acme cert revoke
+    myapp acme cert generate
+    myapp acme cert revoke
 
 =cut
 

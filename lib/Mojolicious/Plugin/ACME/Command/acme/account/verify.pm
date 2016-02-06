@@ -22,8 +22,8 @@ Mojolicious::Plugin::ACME::Command::acme::account::verify - ACME account verific
 =head1 SYNOPSIS
 
   Usage: APPLICATION acme account verify [OPTIONS]
-    myqpp acme account verify
-    myqpp acme account verify -t -a myaccount.key
+    myapp acme account verify
+    myapp acme account verify -t -a myaccount.key
 
   Options:
 =cut

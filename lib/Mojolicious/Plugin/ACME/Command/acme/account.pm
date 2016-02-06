@@ -21,8 +21,8 @@ Mojolicious::Plugin::ACME::Command::acme::account - ACME account commands
 =head1 SYNOPSIS
 
   Usage: APPLICATION acme account COMMAND [OPTIONS]
-    myqpp acme account create
-    myqpp acme account verify
+    myapp acme account create
+    myapp acme account verify
 
 =cut
 
