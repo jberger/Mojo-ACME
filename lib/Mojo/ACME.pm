@@ -219,3 +219,110 @@ sub _der_to_cert {
 
 1;
 
+=head1 NAME
+
+Mojo::ACME - Mojo-based ACME-protocol client
+
+=head1 SYNOPSIS
+
+  # myapp.pl
+  use Mojolicious::Lite;
+  plugin 'ACME';
+  get '/' => {text => 'Hello World'};
+  app->start;
+
+  # then on the command line
+  $ ./myapp.pl acme account create # if necessary
+  Writing account.key
+  $ ./myapp.pl acme cert generate mydomain.com
+  Writing myapp.key
+  Writing myapp.crt
+
+=head1 DESCRIPTION
+
+L<Let's Encrypt|https://letsencrypt.org> (also known as letsencrypt) is a service that provices free SSL certificates via an automated system.
+The service uses (and indeed defines) a protocol called ACME to securely communicate authenication, verification, and certificate issuance.
+If you aren't familiar with ACME or at least certificate issuance, you might want to see L<How it works|https://letsencrypt.org/howitworks/technology/> first.
+While many clients already exist, web framework plugins have the unique ability to handle the challenge response internally and therefore make for the easiest possible letsencrypt (or other ACME service) experience.
+
+=head1 DEVELOPMENT STATUS
+
+The plugin and command level apis should be fairly standardized; the author expects few changes to this level of the system.
+That said, the lower level modules, like L<Mojo::ACME> are to be considered unstable and should not be relied upon.
+Use of these classes directly is highly discouraged for the time being.
+
+=head1 ARCHITECTURE
+
+The system consists of three major component classes, the plugin L<Mojolicious::Plugin::ACME>, the commands, and the lower level classes which they rely on.
+
+=head2 Plugin
+
+The plugin is the glue that holds the system together.
+It adds the C<acme> command (and its subcommands) to your app's command system.
+It also establishes a route which handles the challenge request from the ACME service.
+During your certificate issuance, you must prove that you control the requested domain by serving specified content at a specific location.
+This route makes that possible.
+
+The plugin itself reads configuration out of the application's L<config|Mojo/config> method.
+This can be set directly in the application or loaded from a file via say L<Mojolicious::Plugin::Config> in the usual way.
+It looks for a config key C<acme> containing a hash of configuration.
+Those value can be seen in the L<Mojolicious::Plugin::ACME> documentation.
+
+THe most important of these is C<client_url>.
+In order to know how to respond to the challenge request, your server will make a signed HTTP request to your ACME client which will be listening.
+This url is used both as the listen value of the ACME client's built-in server, as well as the base of your server's request.
+It is advised that you use a url which isn't publically available if possible, though the requests are HMAC signed in any event.
+
+=head2 Commands
+
+The system provides several commands, including those for creating and verifying an account, as well as certificate issuance (and soon, revoking).
+The commands are made available simply by using the plugin in your application.
+They are then available in the same manner as built-in commands
+
+  $ ./myapp.pl acme ...
+
+While some options are sub-command specific, all sub-commands take a few options.
+Important among those is the C<--ca> option and more conveniently the C<--test> (or C<-t>) flag.
+Let's Encrypt has severe rate limiting for issuance of certicates on its production hosts.
+Using the test flag uses the staging server which has greatly relaxed rate limits, though doesn't issue signed certs or create real accounts.
+It does however use exactly the same process as the production service and issue valid (if not signed) certs.
+The author highly recommends trying the process on the staging server first.
+
+=head2 Modules (Low Level Usage)
+
+As mentioned before, the author hopes to stabilize the low-level interface to be reusable/accessible, however for the time being that is not so and things WILL CHANGE UNEXPECTEDLY!
+
+=head1 SEE ALSO
+
+=over
+
+=item *
+
+L<Mojolicious> - L<http://mojolicio.us>
+
+=item *
+
+Let's Encrypt - L<https://letsencrypt.org/>
+
+=item *
+
+ACME Protocol - L<https://github.com/letsencrypt/acme-spec>
+
+=back
+
+
+=head1 SOURCE REPOSITORY
+
+L<http://github.com/jberger/Mojo-ACME>
+
+=head1 AUTHOR
+
+Joel Berger, E<lt>joel.a.berger@gmail.comE<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2016 by Joel Berger
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
