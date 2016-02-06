@@ -5,7 +5,7 @@ has common_usage => sub { shift->extract_usage };
 
 use Mojo::ACME;
 use Mojo::URL;
-use Getopt::Long qw(GetOptionsFromArray :config no_ignore_case); # no_auto_abbrev
+use Getopt::Long qw(GetOptionsFromArray :config no_ignore_case pass_through); # no_auto_abbrev
 
 sub build_acme {
   my ($c, $args) = @_;

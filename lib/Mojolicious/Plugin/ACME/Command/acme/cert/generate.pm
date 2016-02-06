@@ -17,10 +17,13 @@ sub run {
   my $acme = $c->build_acme(\@args);
   $acme->server_url($c->app->config('acme')->{client_url});
 
+  my @domains;
   GetOptionsFromArray(\@args,
     'name|n=s' => \my $name,
-    'domain|d=s' => \my @domains,
-    'force|f' => \my $force,
+    'domain|d=s' => \@domains,
+    'intermediate|i=s' => \(my $int_url = 'https://letsencrypt.org/certs/lets-encrypt-x1-cross-signed.pem'),
+    'full!' => \(my $full = 1),
+    'wildcard|w' => \my $wildcard,
   );
   $name ||= $c->app->moniker;
 
@@ -32,8 +35,18 @@ sub run {
   #never to be challenged and thus @new is not @domains
 
   my @new = grep { $_ !~ /^\*/ } @domains;
-  die 'ACME does not explicitly allow wildcard certs, use --force to override'
-    unless (@new == @domains || $force);
+  die 'ACME does not explicitly allow wildcard certs, use --wildcard to override'
+    unless (@new == @domains || $wildcard);
+
+  my $intermediate;
+  if ($full) {
+    my $msg = "No certificate generation was attempted. Use --no-full to proceed without it.\n";
+    my $tx = $acme->ua->get($int_url);
+    die "Failed to fetch intermediate cert. $msg"
+      unless $tx->success;
+    die "Intermediate cert was empty. $msg"
+      unless $intermediate = $tx->res->body;
+  }
 
   my $cert;
   Mojo::IOLoop->delay(
@@ -57,6 +70,10 @@ sub run {
     spurt $acme->cert_key->string => $key_path;
   }
 
+  if ($intermediate) {
+    $cert = $cert . $intermediate;
+  }
+
   my $cert_path = "$name.crt";
   say "Writing $cert_path";
   spurt $cert => $cert_path;
@@ -75,5 +92,14 @@ Mojolicious::Plugin::ACME::Command::acme::cert::generate - ACME signed certifica
     myapp acme cert generate -t -a myaccount.key mydomain.com
 
   Options:
+
+    -n, --name          the name of the file(s) to be generated, defaults to the app's moniker
+    -d, --domain        the domain (or domains is passed multiple times) to be issued (on a single cert)
+                          note that bare arguments are also used as domains
+    -i, --intermediate  the url of the intermediate cert to be chained if "full" is passed
+                          defaults to https://letsencrypt.org/certs/lets-encrypt-x1-cross-signed.pem'),
+    --full, --no-full   automatically chain the resulting certificate with the intermediate
+                          defaults to true, use --no-full to disable
+    -w, --wildcard      allow wildcard requests, letsencrypt does not issue wildcard certs (yet?), though others might
 =cut
 
