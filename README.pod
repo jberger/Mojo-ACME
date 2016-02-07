@@ -48,7 +48,7 @@ This can be set directly in the application or loaded from a file via say L<Mojo
 It looks for a config key C<acme> containing a hash of configuration.
 Those value can be seen in the L<Mojolicious::Plugin::ACME> documentation.
 
-THe most important of these is C<client_url>.
+The most important of these is C<challenge_url>.
 In order to know how to respond to the challenge request, your server will make a signed HTTP request to your ACME client which will be listening.
 This url is used both as the listen value of the ACME client's built-in server, as well as the base of your server's request.
 It is advised that you use a url which isn't publically available if possible, though the requests are HMAC signed in any event.

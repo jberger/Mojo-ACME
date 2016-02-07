@@ -11,7 +11,7 @@ sub register {
   my $config = $app->config->{acme} ||= {}; #die 'no ACME config found';
 
   $config->{ca} ||= 'https://acme-staging.api.letsencrypt.org';
-  my $url = Mojo::URL->new($config->{client_url} ||= 'http://127.0.0.1:5000');
+  my $url = Mojo::URL->new($config->{challenge_url} ||= 'http://127.0.0.1:5000');
 
   push @{ $app->commands->namespaces }, 'Mojolicious::Plugin::ACME::Command';
 

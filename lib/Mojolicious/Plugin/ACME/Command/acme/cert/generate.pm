@@ -15,7 +15,7 @@ has usage => sub {
 sub run {
   my ($c, @args) = @_;
   my $acme = $c->build_acme(\@args);
-  $acme->server_url($c->app->config('acme')->{client_url});
+  $acme->server_url($c->app->config('acme')->{challenge_url});
 
   my @domains;
   GetOptionsFromArray(\@args,
