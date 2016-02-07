@@ -2,3 +2,5 @@
 *.crt
 *.cert
 *.pem
+
+!t/test.key

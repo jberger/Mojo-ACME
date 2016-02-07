@@ -17,10 +17,11 @@ has key => sub {
   my $rsa;
   if ($path && -e $path) {
     my $string = Mojo::Util::slurp($path);
-    $rsa = Crypt::OpenSSL::RSA->new_private_key($string)
+    $rsa = Crypt::OpenSSL::RSA->new_private_key($string);
+    $self->generated(0);
   } else {
-    $self->generated(1);
     $rsa = Crypt::OpenSSL::RSA->generate_key(4096);
+    $self->generated(1);
   }
   return $rsa;
 };
