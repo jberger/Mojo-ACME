@@ -231,7 +231,7 @@ Mojo::ACME - Mojo-based ACME-protocol client
   get '/' => {text => 'Hello World'};
   app->start;
 
-  # then on the command line, while the app is available on port 80 or 443
+  # then on the command line, while the app is available on port 80
   # NOTE! you should use -t when testing on following command
 
   # register an account key if necessary
