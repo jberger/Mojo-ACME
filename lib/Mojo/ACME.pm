@@ -231,13 +231,19 @@ Mojo::ACME - Mojo-based ACME-protocol client
   get '/' => {text => 'Hello World'};
   app->start;
 
-  # then on the command line
-  # NOTE! use -t for testing on following
-  $ ./myapp.pl acme account register # if necessary
+  # then on the command line, while the app is available on port 80 or 443
+  # NOTE! you should use -t when testing on following command
+
+  # register an account key if necessary
+  $ ./myapp.pl acme account register
   Writing account.key
+
+  # generate your domain cert
   $ ./myapp.pl acme cert generate mydomain.com
   Writing myapp.key
   Writing myapp.crt
+
+  # install your cert and restart your server per server instructions
 
 =head1 DESCRIPTION
 
