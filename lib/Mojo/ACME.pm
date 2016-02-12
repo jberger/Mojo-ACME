@@ -75,8 +75,7 @@ sub check_challenge_status {
   my ($self, $token, $cb) = @_;
   return Mojo::IOLoop->next_tick(sub{ $self->$cb({token => $token, message => 'unknown token'}) })
     unless my $challenge = $self->challenges->{$token};
-  my $ua = $self->ua;
-  $ua->get($challenge->{uri} => sub {
+  $self->ua->get($challenge->{uri} => sub {
     my ($ua, $tx) = @_;
     my $err;
     if (my $res = $tx->success) {
@@ -105,7 +104,7 @@ sub get_cert {
 sub get_nonce {
   my $self = shift;
   my $url = $self->ca->clone->path('/directory');
-  $self->ua->get($url)->res->headers->header('Replay-Nonce');
+  return $self->ua->get($url)->res->headers->header('Replay-Nonce');
 }
 
 sub generate_csr {
