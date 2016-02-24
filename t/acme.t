@@ -1,6 +1,7 @@
 use Mojo::Base -strict;
 
 use Test::More;
+use Mock::MonkeyPatch;
 use Mojo::JSON;
 use Mojo::URL;
 use Mojolicious;
@@ -116,6 +117,40 @@ subtest 'account registration' => sub {
     is_deeply $json, $expect;
     $json = undef;
   };
+};
+
+subtest 'get cert' => sub {
+  my ($acme, $mock) = test_objects;
+  my ($body, $status, $json);
+  $mock->routes->post('/acme/new-cert' => sub {
+    my $c = shift;
+    $json = $c->req->json;
+    $c->render(text => $body, status => $status);
+  });
+
+  my $signed = Mock::MonkeyPatch->patch('Mojo::ACME::signed_request' => sub { Mojo::JSON::encode_json($_[1]) });
+  my $pem_to_der  = Mock::MonkeyPatch->patch('Mojo::ACME::_pem_to_der'  => sub { "DER: $_[0]" });
+  my $der_to_cert = Mock::MonkeyPatch->patch('Mojo::ACME::_der_to_cert' => sub { "PEM: $_[0]" });
+  my $b64 = Mock::MonkeyPatch->patch('Mojo::ACME::encode_base64url' => sub { "B64: $_[0]" });
+  my $gen_csr = Mock::MonkeyPatch->patch('Mojo::ACME::generate_csr' => sub { shift; "CSR: @_" });
+
+  subtest 'success' => sub {
+    $body = 'cert';
+    $status = 200;
+    my $expect = {
+      resource => 'new-cert',
+      csr => 'B64: DER: CSR: example.com',
+    };
+    my $got = $acme->get_cert('example.com');
+    is_deeply $gen_csr->method_arguments, ['example.com'], 'generate_csr got expected arguments';
+    is_deeply $json, $expect, 'acme service got expected request';
+    is $got, 'PEM: cert', 'got expected certificate';
+  };
+
+  #subtest 'fail' => sub {
+    #$status = 500;
+
+  #};
 };
 
 done_testing;
