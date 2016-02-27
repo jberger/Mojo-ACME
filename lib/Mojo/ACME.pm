@@ -4,13 +4,10 @@ use Mojo::Base -base;
 
 use Mojo::Collection 'c';
 use Mojo::JSON qw/encode_json/;
-use Mojo::Server::Daemon;
 use Mojo::URL;
-use Mojolicious;
 
 use Crypt::OpenSSL::PKCS10;
 use MIME::Base64 qw/encode_base64url encode_base64 decode_base64/;
-use Scalar::Util;
 
 use Mojo::ACME::Key;
 use Mojo::ACME::ChallengeServer;

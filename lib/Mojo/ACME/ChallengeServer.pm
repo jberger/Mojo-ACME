@@ -2,7 +2,10 @@ package Mojo::ACME::ChallengeServer;
 
 use Mojo::Base -base;
 
+use Mojo::Server::Daemon;
 use Mojo::Util 'hmac_sha1_sum';
+use Mojolicious;
+use Scalar::Util;
 
 has acme => sub { die 'Mojo::ACME instance is required' };
 has callbacks => sub { {} };
