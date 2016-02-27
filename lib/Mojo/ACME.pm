@@ -6,7 +6,6 @@ use Mojo::Collection 'c';
 use Mojo::JSON qw/encode_json/;
 use Mojo::Server::Daemon;
 use Mojo::URL;
-use Mojo::Util 'hmac_sha1_sum';
 use Mojolicious;
 
 use Crypt::OpenSSL::PKCS10;
@@ -14,6 +13,7 @@ use MIME::Base64 qw/encode_base64url encode_base64 decode_base64/;
 use Scalar::Util;
 
 use Mojo::ACME::Key;
+use Mojo::ACME::ChallengeServer;
 
 has account_key => sub { Mojo::ACME::Key->new(path => 'account.key') };
 has ca => sub { Mojo::URL->new('https://acme-v01.api.letsencrypt.org') };
@@ -21,35 +21,8 @@ has challenges => sub { {} };
 #TODO use cert_key->key if it exists
 has cert_key => sub { Mojo::ACME::Key->new };
 
-has server => sub {
-  my $self = shift;
-  my $app = Mojolicious->new;
-  my $server = Mojo::Server::Daemon->new(
-    app    => $app,
-    listen => [$self->server_url],
-  );
-  Scalar::Util::weaken $self;
-  $app->routes->get('/:token' => sub {
-    my $c = shift;
-    my $token = $c->stash('token');
-    my $hmac = $c->req->headers->header('X-HMAC');
-    my $secret = $self->secret;
-
-    return $c->reply->not_found
-      unless my $cb = delete $self->{callbacks}{$token};
-    $c->on(finish => sub { $self->$cb($token) });
-
-    return $c->render(text => 'Unauthorized', status => 401)
-      unless $hmac eq hmac_sha1_sum($token, $secret);
-
-    my $auth = $self->keyauth($token);
-    $c->res->headers->header('X-HMAC' => hmac_sha1_sum($auth, $secret));
-    $c->render(text => $auth);
-  });
-  return $server->start;
-};
-
 has secret => sub { die 'secret is required' };
+has server => sub { Mojo::ACME::ChallengeServer->new(acme => shift)->start };
 has server_url => 'http://127.0.0.1:5000';
 has ua => sub { Mojo::UserAgent->new };
 
@@ -146,8 +119,7 @@ sub new_authz {
 
   my $token = $challenge->{token};
   $self->challenges->{$token} = $challenge;
-  $self->{callbacks}{$token} = $cb;
-  $self->server; #ensure server started
+  $self->server->callbacks->{$token} = $cb;
 
   my $trigger = $self->signed_request({
     resource => 'challenge',
