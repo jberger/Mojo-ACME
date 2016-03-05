@@ -16,10 +16,14 @@ sub start { shift->tap('server') }
 sub _start {
   my $self = shift;
   my $secret = $self->acme->secret;
-  my $app = Mojolicious->new;
+  my $app = Mojolicious->new(
+    secrets => [$secret],
+  );
+  $app->log->unsubscribe('message');
   my $server = Mojo::Server::Daemon->new(
     app    => $app,
     listen => [$self->acme->server_url],
+    silent => 1,
   );
   Scalar::Util::weaken $self;
   $app->routes->get('/:token' => sub {

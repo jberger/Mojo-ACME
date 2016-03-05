@@ -240,8 +240,8 @@ This route makes that possible.
 
 The plugin itself reads configuration out of the application's L<config|Mojo/config> method.
 This can be set directly in the application or loaded from a file via say L<Mojolicious::Plugin::Config> in the usual way.
-It looks for a config key C<acme> containing a hash of configuration.
-Those value can be seen in the L<Mojolicious::Plugin::ACME> documentation.
+It looks for a config key C<acme> containing a hash of configuration options.
+Those options can be seen in the L<Mojolicious::Plugin::ACME> documentation.
 
 The most important of these is C<challenge_url>.
 In order to know how to respond to the challenge request, your server will make a signed HTTP request to your ACME client which will be listening.
