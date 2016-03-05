@@ -2,7 +2,7 @@ package Mojolicious::Plugin::ACME::Command::acme;
 
 use Mojo::Base 'Mojolicious::Commands';
 
-has description => 'Interact with remote ACME services (letsencrypt)';
+has description => 'Interact with remote ACME services (e.g. letsencrypt)';
 has hint => <<END;
 
 See $0 acme help COMMAND for more information on a specific command

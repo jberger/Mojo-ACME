@@ -13,7 +13,7 @@ use Mojo::ACME::Key;
 use Mojo::ACME::ChallengeServer;
 
 has account_key => sub { Mojo::ACME::Key->new(path => 'account.key') };
-has ca => sub { Mojo::URL->new('https://acme-v01.api.letsencrypt.org') };
+has ca => sub { die 'ca is required' };
 has challenges => sub { {} };
 #TODO use cert_key->key if it exists
 has cert_key => sub { Mojo::ACME::Key->new };
@@ -65,7 +65,7 @@ sub get_cert {
     resource => 'new-cert',
     csr => encode_base64url($csr),
   });
-  my $url = $self->ca->clone->path('/acme/new-cert');
+  my $url = $self->ca->url('/acme/new-cert');
   my $tx = $self->ua->post($url, $req);
   die 'failed to get cert' unless $tx->success;
   return _der_to_cert($tx->res->body);
@@ -73,7 +73,7 @@ sub get_cert {
 
 sub get_nonce {
   my $self = shift;
-  my $url = $self->ca->clone->path('/directory');
+  my $url = $self->ca->url('/directory');
   return $self->ua->get($url)->res->headers->header('Replay-Nonce');
 }
 
@@ -99,7 +99,7 @@ sub keyauth {
 
 sub new_authz {
   my ($self, $value, $cb) = @_;
-  my $url = $self->ca->clone->path('/acme/new-authz');
+  my $url = $self->ca->url('/acme/new-authz');
   my $req = $self->signed_request({
     resource => 'new-authz',
     identifier => {
@@ -135,10 +135,10 @@ sub pending_challenges {
 
 sub register {
   my $self = shift;
-  my $url = $self->ca->clone->path('/acme/new-reg');
+  my $url = $self->ca->url('/acme/new-reg');
   my $req = $self->signed_request({
     resource => 'new-reg',
-    agreement => 'https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf',
+    agreement => $self->ca->agreement,
   });
   my $code = $self->ua->post($url, $req)->res->code;
   return

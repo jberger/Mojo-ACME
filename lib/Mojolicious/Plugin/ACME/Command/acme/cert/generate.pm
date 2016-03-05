@@ -21,7 +21,7 @@ sub run {
   GetOptionsFromArray(\@args,
     'name|n=s' => \my $name,
     'domain|d=s' => \@domains,
-    'intermediate|i=s' => \(my $int_url = 'https://letsencrypt.org/certs/lets-encrypt-x1-cross-signed.pem'),
+    'intermediate|i=s' => \my $int_url,
     'full!' => \(my $full = 1),
     'wildcard|w' => \my $wildcard,
   );
@@ -41,6 +41,9 @@ sub run {
   my $intermediate;
   if ($full) {
     my $msg = "No certificate generation was attempted. Use --no-full to proceed without it.\n";
+    $int_url ||= eval { $acme->ca->intermediate };
+    die "Intermediate certificate not specified. $msg"
+      unless $int_url;
     my $tx = $acme->ua->get($int_url);
     die "Failed to fetch intermediate cert. $msg"
       unless $tx->success;
@@ -97,7 +100,6 @@ Mojolicious::Plugin::ACME::Command::acme::cert::generate - ACME signed certifica
     -d, --domain        the domain (or domains is passed multiple times) to be issued (on a single cert)
                           note that bare arguments are also used as domains
     -i, --intermediate  the url of the intermediate cert to be chained if "full" is passed
-                          defaults to https://letsencrypt.org/certs/lets-encrypt-x1-cross-signed.pem'),
     --full, --no-full   automatically chain the resulting certificate with the intermediate
                           defaults to true, use --no-full to disable
     -w, --wildcard      allow wildcard requests, letsencrypt does not issue wildcard certs (yet?), though others might

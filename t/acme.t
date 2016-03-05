@@ -7,10 +7,16 @@ use Mojo::URL;
 use Mojolicious;
 
 use Mojo::ACME;
+use Mojo::ACME::CA;
 use Mojo::ACME::Key;
 
 sub test_objects {
   my $acme = Mojo::ACME->new(ca => Mojo::URL->new('/'));
+  $acme->ca(Mojo::ACME::CA->new(
+    name => 'Test CA',
+    primary_url => '/',
+    test_url => '/',
+  ));
   $acme->ua->server->app(my $mock = Mojolicious->new);
   return ($acme, $mock);
 }
@@ -62,20 +68,20 @@ subtest 'check challenge status' => sub {
 subtest 'keyauth' => sub {
   no warnings 'redefine';
   local *Mojo::ACME::Key::thumbprint = sub { 'abcd' };
-  my $acme = Mojo::ACME->new;
+  my ($acme, $mock) = test_objects;
   is $acme->keyauth('xyz'), 'xyz.abcd', 'correct keyauth';
 };
 
 subtest 'generate csr' => sub {
   #TODO improve this test
-  my $acme = Mojo::ACME->new;
+  my ($acme, $mock) = test_objects;
   $acme->cert_key->path('t/test.key');
   ok $acme->generate_csr('example.com');
 };
 
 subtest 'generate signed request body' => sub {
   #TODO improve this test
-  my $acme = Mojo::ACME->new;
+  my ($acme, $mock) = test_objects;
   $acme->account_key->path('t/test.key');
   ok $acme->signed_request({hello => 'world'});
 };

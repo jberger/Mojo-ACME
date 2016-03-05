@@ -6,11 +6,30 @@ use Mojo::URL;
 use Mojo::UserAgent;
 use Mojo::Util 'hmac_sha1_sum';
 
+use Mojo::ACME::CA;
+
+my %cas = (
+  letsencrypt => {
+    agreement => 'https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf',
+    name => q[Let's Encrypt],
+    intermediate => 'https://letsencrypt.org/certs/lets-encrypt-x1-cross-signed.pem',
+    primary_url => Mojo::URL->new('https://acme-v01.api.letsencrypt.org'),
+    test_url    => Mojo::URL->new('https://acme-staging.api.letsencrypt.org'),
+  },
+);
+
 sub register {
   my ($plugin, $app) = @_;
   my $config = $app->config->{acme} ||= {}; #die 'no ACME config found';
 
-  $config->{ca} ||= 'https://acme-staging.api.letsencrypt.org';
+  %{ $config->{cas} } = (%cas, %{ $config->{cas} || {} }); # merge default CAs #}# highlight fix
+  $config->{ca} ||= 'letsencrypt';
+  unless (ref $config->{ca}) {
+    die 'Unknown CA'
+      unless my $spec = $config->{cas}{$config->{ca}};
+    $config->{ca} = Mojo::ACME::CA->new($spec);
+  }
+
   my $url = Mojo::URL->new($config->{challenge_url} ||= 'http://127.0.0.1:5000');
 
   push @{ $app->commands->namespaces }, 'Mojolicious::Plugin::ACME::Command';
