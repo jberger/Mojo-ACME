@@ -18,6 +18,7 @@ sub test_objects {
     test_url => '/',
   ));
   $acme->ua->server->app(my $mock = Mojolicious->new);
+  $mock->log->unsubscribe('message');
   return ($acme, $mock);
 }
 
