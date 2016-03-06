@@ -11,6 +11,7 @@ use Mojo::URL;
 
 use Crypt::OpenSSL::PKCS10;
 use MIME::Base64 qw/encode_base64url encode_base64 decode_base64/;
+use Scalar::Util ();
 
 use Mojo::ACME::Key;
 use Mojo::ACME::ChallengeServer;
@@ -24,7 +25,21 @@ has cert_key => sub { Mojo::ACME::Key->new };
 has secret => sub { die 'secret is required' };
 has server => sub { Mojo::ACME::ChallengeServer->new(acme => shift)->start };
 has server_url => 'http://127.0.0.1:5000';
-has ua => sub { Mojo::UserAgent->new };
+has ua => sub {
+  my $self = shift;
+  Scalar::Util::weaken $self;
+  my $ua = Mojo::UserAgent->new;
+  $ua->on(start => sub {
+    my (undef, $tx) = @_;
+    $tx->on(finish => sub {
+      my $tx = shift;
+      return unless $self && $tx->success;
+      return unless my $nonce = $tx->res->headers->header('Replay-Nonce');
+      push @{$self->{nonces} ||= []}, $nonce;
+    });
+  });
+  return $ua;
+};
 
 sub check_all_challenges {
   my ($self, $cb) = (shift, pop);
@@ -76,8 +91,12 @@ sub get_cert {
 
 sub get_nonce {
   my $self = shift;
+  my $nonces = $self->{nonces} ||= [];
+  return shift @$nonces if @$nonces;
   my $url = $self->ca->url('/directory');
-  return $self->ua->get($url)->res->headers->header('Replay-Nonce');
+  $self->ua->head($url);
+  die 'Could not get nonce' unless @$nonces;
+  return shift @$nonces;
 }
 
 sub generate_csr {

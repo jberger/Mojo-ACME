@@ -11,7 +11,7 @@ use Mojo::ACME::CA;
 use Mojo::ACME::Key;
 
 sub test_objects {
-  my $acme = Mojo::ACME->new(ca => Mojo::URL->new('/'));
+  my $acme = Mojo::ACME->new;
   $acme->ca(Mojo::ACME::CA->new(
     name => 'Test CA',
     primary_url => '/',
@@ -24,16 +24,25 @@ sub test_objects {
 subtest 'get nonce' => sub {
   my ($acme, $mock) = test_objects;
   my $directory;
+  my $nonce = 'abc1234';
   $mock->routes->get('/directory' => sub {
     my $c = shift;
     $directory++;
-    $c->res->headers->header('Replay-Nonce' => 'abc1234');
+    $c->res->headers->header('Replay-Nonce' => $nonce);
     $c->rendered(204);
   });
 
   is $acme->get_nonce, 'abc1234', 'got nonce';
-  ok $directory, 'directory handler was called';
+  is $directory, 1, 'directory handler was called';
+
+  $nonce = 'xyz1234';
+  $acme->ua->head('/directory');
+  is $directory, 2, 'directory handler was called';
+  is $acme->get_nonce, 'xyz1234';
+  is $directory, 2, 'directory handler was not called again';
 };
+
+my $get_nonce = Mock::MonkeyPatch->patch('Mojo::ACME::get_nonce' => sub { 'abc123nonce' });
 
 subtest 'check challenge status' => sub {
   my ($acme, $mock) = test_objects;
@@ -158,6 +167,8 @@ subtest 'get cert' => sub {
 
   #};
 };
+
+ok $get_nonce->called;
 
 done_testing;
 
