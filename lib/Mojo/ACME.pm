@@ -93,10 +93,19 @@ sub get_nonce {
   my $self = shift;
   my $nonces = $self->{nonces} ||= [];
   return shift @$nonces if @$nonces;
+
+  # try to populate the nonce cache
   my $url = $self->ca->url('/directory');
-  $self->ua->head($url);
+  my $tx = $self->ua->head($url);
+  return shift @$nonces if @$nonces;
+
+  # use result directly otherwise
+  # if say the default ua has been replaced
+  if ($tx->success) {
+    my $nonce = $tx->res->headers->header('Replay-Nonce');
+    return $nonce if $nonce;
+  }
   die 'Could not get nonce' unless @$nonces;
-  return shift @$nonces;
 }
 
 sub generate_csr {

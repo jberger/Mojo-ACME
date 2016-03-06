@@ -33,14 +33,22 @@ subtest 'get nonce' => sub {
     $c->rendered(204);
   });
 
-  is $acme->get_nonce, 'abc1234', 'got nonce';
+  is $acme->get_nonce, 'abc1234', 'correct nonce (with cache empty)';
   is $directory, 1, 'directory handler was called';
 
+  $directory = 0;
   $nonce = 'xyz1234';
   $acme->ua->head('/directory');
-  is $directory, 2, 'directory handler was called';
-  is $acme->get_nonce, 'xyz1234';
-  is $directory, 2, 'directory handler was not called again';
+  is $directory, 1, 'directory handler was called';
+  is $acme->get_nonce, 'xyz1234', 'correct nonce (via cache)';
+  is $directory, 1, 'directory handler was not called again';
+
+  # defeat caching
+  $acme->ua->unsubscribe('start');
+  $directory = 0;
+  $nonce = 'a1b2c3';
+  is $acme->get_nonce, 'a1b2c3', 'correct nonce (no caching)';
+  is $directory, 1, 'directory handler was called';
 };
 
 my $get_nonce = Mock::MonkeyPatch->patch('Mojo::ACME::get_nonce' => sub { 'abc123nonce' });
