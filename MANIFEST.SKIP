@@ -62,7 +62,7 @@
 ^MYMETA\.
 #!end included /Users/joel/perl5/perlbrew/perls/perl-5.16.3/lib/site_perl/5.16.3/ExtUtils/MANIFEST.SKIP
 
-\bMojo-ACME-\d+.tar.gz
+\bMojo-ACME-[.\d]+\.tar\.gz
 
 # Avoid README which is intended for github
 \bREADME\.pod$
