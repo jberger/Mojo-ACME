@@ -1,5 +1,8 @@
 Revision history for Perl module Mojo-ACME
 
+0.02 2016-03-09
+  - Added caching of received nonces
+
 0.01 2016-03-09
   - Initial release
 
