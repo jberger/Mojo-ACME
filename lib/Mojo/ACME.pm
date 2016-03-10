@@ -2,6 +2,9 @@ package Mojo::ACME;
 
 use Mojo::Base -base;
 
+our $VERSION = '0.01';
+$VERSION = eval $VERSION;
+
 use Mojo::Collection 'c';
 use Mojo::JSON qw/encode_json/;
 use Mojo::URL;
