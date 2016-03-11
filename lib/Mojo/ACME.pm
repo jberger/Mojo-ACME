@@ -247,7 +247,7 @@ Mojo::ACME - Mojo-based ACME-protocol client
 =head1 DESCRIPTION
 
 L<Let's Encrypt|https://letsencrypt.org> (also known as letsencrypt) is a service that provices free SSL certificates via an automated system.
-The service uses (and indeed defines) a protocol called ACME to securely communicate authenication, verification, and certificate issuance.
+The service uses (and indeed defines) a protocol called ACME to securely communicate authentication, verification, and certificate issuance.
 If you aren't familiar with ACME or at least certificate issuance, you might want to see L<how it works|https://letsencrypt.org/howitworks/technology/> first.
 While many clients already exist, web framework plugins have the unique ability to handle the challenge response internally and therefore make for the easiest possible letsencrypt (or other ACME service) experience.
 
