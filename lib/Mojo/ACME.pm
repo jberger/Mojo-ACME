@@ -329,9 +329,17 @@ L<http://github.com/jberger/Mojo-ACME>
 
 Joel Berger, E<lt>joel.a.berger@gmail.comE<gt>
 
+=head1 CONTRIBUTORS
+
+=over
+
+=item Mario Domgoergen (mdom)
+
+=back
+
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2016 by Joel Berger
+Copyright (C) 2016 by Joel Berger and L</CONTRIBUTORS>
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
