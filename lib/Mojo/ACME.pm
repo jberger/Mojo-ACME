@@ -333,7 +333,9 @@ Joel Berger, E<lt>joel.a.berger@gmail.comE<gt>
 
 =over
 
-=item Mario Domgoergen (mdom)
+=item *
+
+Mario Domgoergen (mdom)
 
 =back
 
