@@ -12,7 +12,7 @@ my %cas = (
   letsencrypt => {
     agreement => 'https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf',
     name => q[Let's Encrypt],
-    intermediate => 'https://letsencrypt.org/certs/lets-encrypt-x1-cross-signed.pem',
+    intermediate => 'https://letsencrypt.org/certs/lets-encrypt-x3-cross-signed.pem',
     primary_url => Mojo::URL->new('https://acme-v01.api.letsencrypt.org'),
     test_url    => Mojo::URL->new('https://acme-staging.api.letsencrypt.org'),
   },
