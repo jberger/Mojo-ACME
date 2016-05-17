@@ -4,7 +4,7 @@ use Mojo::Base 'Mojolicious::Plugin';
 
 use Mojo::URL;
 use Mojo::UserAgent;
-use Mojo::Util 'hmac_sha1_sum';
+use Mojo::Util qw/hmac_sha1_sum secure_compare/;
 
 use Mojo::ACME::CA;
 
@@ -47,7 +47,7 @@ sub register {
         return $c->reply->not_found
           unless $tx->success && (my $auth = $tx->res->text) && (my $hmac_res = $tx->res->headers->header('X-HMAC'));
         return $c->reply->not_found
-          unless $hmac_res eq hmac_sha1_sum($auth, $secret);
+          unless secure_compare $hmac_res, hmac_sha1_sum($auth, $secret);
 
         $c->render(text => $auth);
       },

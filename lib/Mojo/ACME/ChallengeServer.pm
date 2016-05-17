@@ -3,7 +3,7 @@ package Mojo::ACME::ChallengeServer;
 use Mojo::Base -base;
 
 use Mojo::Server::Daemon;
-use Mojo::Util 'hmac_sha1_sum';
+use Mojo::Util qw/hmac_sha1_sum secure_compare/;
 use Mojolicious;
 use Scalar::Util;
 
@@ -37,7 +37,7 @@ sub _start {
     $c->on(finish => sub { $cb->($self->acme, $token) if $self });
 
     return $c->render(text => 'Unauthorized', status => 401)
-      unless $hmac eq hmac_sha1_sum($token, $secret);
+      unless secure_compare $hmac, hmac_sha1_sum($token, $secret);
 
     my $auth = $self->acme->keyauth($token);
     $c->res->headers->header('X-HMAC' => hmac_sha1_sum($auth, $secret));
