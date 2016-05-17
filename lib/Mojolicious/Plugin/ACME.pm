@@ -9,7 +9,7 @@ use Safe::Isa '$_isa';
 
 use Mojo::ACME::CA;
 
-my %cas = (
+my %authorities = (
   letsencrypt => {
     agreement => 'https://letsencrypt.org/documents/LE-SA-v1.0.1-July-27-2015.pdf',
     name => q[Let's Encrypt],
@@ -23,14 +23,14 @@ sub register {
   my ($plugin, $app) = @_;
   my $config = $app->config->{acme} ||= {}; #die 'no ACME config found';
 
-  %{ $config->{authorities} } = (%cas, %{ $config->{authorities} || {} }); # merge default CAs #}# highlight fix
+  %{ $config->{authorities} } = (%authorities, %{ $config->{authorities} || {} }); # merge default CAs #}# highlight fix
   $config->{ca} ||= 'letsencrypt';
   if (ref $config->{ca}) {
     $config->{ca} = Mojo::ACME::CA->new($config->{ca})
       unless $config->{ca}->$_isa('Mojo::ACME::CA');
   } else {
     die 'Unknown CA'
-      unless my $spec = $config->{cas}{$config->{ca}};
+      unless my $spec = $config->{authorities}{$config->{ca}};
     $config->{ca} = Mojo::ACME::CA->new($spec);
   }
 
