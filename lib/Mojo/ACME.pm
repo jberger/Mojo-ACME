@@ -139,7 +139,18 @@ sub new_authz {
     },
   });
   my $tx = $self->ua->post($url, $req);
-  die 'Error requesting challenges' unless $tx->res->code == 201;
+  if (!$tx->success or $tx->res->code != 201) {
+    my $err = $tx->error;
+    my $code = $err->{code} || '';
+    my $message = $err->{message};
+    my $detail = '';
+    if ($code) {
+      # Parse JSON body to find the detailed reason for the error
+      my $json = $tx->res->json;
+      $detail = ' - ' . $json->{detail} if ($json && $json->{detail});
+    }
+    die "Error response requesting challenges: $code $message$detail\n";
+  }
 
   my $challenges = $tx->res->json('/challenges') || [];
   die 'No http challenge available'
