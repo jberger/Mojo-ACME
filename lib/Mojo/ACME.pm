@@ -85,7 +85,19 @@ sub get_cert {
   });
   my $url = $self->ca->url('/acme/new-cert');
   my $tx = $self->ua->post($url, $req);
-  die 'failed to get cert' unless $tx->success;
+
+  if (!$tx->success) {
+    my $err = $tx->error;
+    my $code = $err->{code} || '';
+    my $message = $err->{message};
+    my $detail = '';
+    if ($code) {
+      # Parse JSON body to find the detailed reason for the error
+      my $json = $tx->res->json;
+      $detail = ' - ' . $json->{detail} if ($json && $json->{detail});
+    }
+    die "Failed to get cert: $code $message$detail";
+  }
   return _der_to_cert($tx->res->body);
 }
 
