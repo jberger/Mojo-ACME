@@ -47,6 +47,7 @@ sub check_all_challenges {
   Mojo::IOLoop->delay(
     sub {
       my $delay = shift;
+      $delay->pass unless @pending;
       $self->check_challenge_status($_, $delay->begin) for @pending;
     },
     sub {
@@ -147,14 +148,19 @@ sub new_authz {
 
   my $token = $challenge->{token};
   $self->challenges->{$token} = $challenge;
-  $self->server->callbacks->{$token} = $cb;
 
   my $trigger = $self->signed_request({
     resource => 'challenge',
     keyAuthorization => $self->keyauth($token),
   });
+  $tx = $self->ua->post($challenge->{uri}, $trigger);
   die 'Error triggering challenge'
-    unless $self->ua->post($challenge->{uri}, $trigger)->res->code == 202;
+    unless $tx->res->code == 202;
+
+  if ($tx->res->json('/status') eq 'valid') {
+    delete $self->server->callbacks->{$token};
+    Mojo::IOLoop->next_tick(sub{ $self->$cb($token) });
+  }
 }
 
 sub pending_challenges {
