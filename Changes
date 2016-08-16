@@ -1,5 +1,9 @@
 Revision history for Perl module Mojo-ACME
 
+0.05 2016-08-16
+  - Update the LE agreement url
+  - Fix a few timing bugs
+
 0.04 2016-05-17
   - Updated the default intermediate letsencrypt cert to X3
   - Rename the (formerly undocumented) plugin option cas to authorities
