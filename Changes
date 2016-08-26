@@ -1,5 +1,8 @@
 Revision history for Perl module Mojo-ACME
 
+0.06 2016-08-26
+  - fix a timing bug introduced in 0.05 (pink_mist++)
+
 0.05 2016-08-16
   - Update the LE agreement url
   - Fix a few timing bugs
