@@ -148,6 +148,7 @@ sub new_authz {
 
   my $token = $challenge->{token};
   $self->challenges->{$token} = $challenge;
+  $self->server->callbacks->{$token} = $cb;
 
   my $trigger = $self->signed_request({
     resource => 'challenge',
