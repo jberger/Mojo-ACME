@@ -149,7 +149,7 @@ subtest 'get cert' => sub {
   $mock->routes->post('/acme/new-cert' => sub {
     my $c = shift;
     $json = $c->req->json;
-    $c->render(text => $body, status => $status);
+    $c->render(data => $body, status => $status);
   });
 
   my $signed = Mock::MonkeyPatch->patch('Mojo::ACME::signed_request' => sub { Mojo::JSON::encode_json($_[1]) });
@@ -171,10 +171,13 @@ subtest 'get cert' => sub {
     is $got, 'PEM: cert', 'got expected certificate';
   };
 
-  #subtest 'fail' => sub {
-    #$status = 500;
-
-  #};
+  subtest 'fail' => sub {
+    $status = 500;
+    $body = Mojo::JSON::encode_json { detail => 'bad thingz' };
+    eval { $acme->get_cert('bad.net') };
+    chomp(my $err = $@);
+    is $err, 'Failed to get cert (code 500) - bad thingz', 'got correct error';
+  };
 };
 
 ok $get_nonce->called;

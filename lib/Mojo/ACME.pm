@@ -2,7 +2,7 @@ package Mojo::ACME;
 
 use Mojo::Base -base;
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 $VERSION = eval $VERSION;
 
 use Mojo::Collection 'c';
@@ -86,7 +86,7 @@ sub get_cert {
   });
   my $url = $self->ca->url('/acme/new-cert');
   my $tx = $self->ua->post($url, $req);
-  die 'failed to get cert' unless $tx->success;
+  _die_if_error($tx, 'Failed to get cert');
   return _der_to_cert($tx->res->body);
 }
 
@@ -106,7 +106,7 @@ sub get_nonce {
     my $nonce = $tx->res->headers->header('Replay-Nonce');
     return $nonce if $nonce;
   }
-  die 'Could not get nonce' unless @$nonces;
+  die "Could not get nonce\n" unless @$nonces;
 }
 
 sub generate_csr {
@@ -140,10 +140,10 @@ sub new_authz {
     },
   });
   my $tx = $self->ua->post($url, $req);
-  die 'Error requesting challenges' unless $tx->res->code == 201;
+  _die_if_error($tx, 'Error requesting challenges', 201);
 
   my $challenges = $tx->res->json('/challenges') || [];
-  die 'No http challenge available'
+  die "No http challenge available\n"
     unless my $challenge = c(@$challenges)->first(sub{ $_->{type} eq 'http-01' });
 
   my $token = $challenge->{token};
@@ -155,8 +155,7 @@ sub new_authz {
     keyAuthorization => $self->keyauth($token),
   });
   $tx = $self->ua->post($challenge->{uri}, $trigger);
-  die 'Error triggering challenge'
-    unless $tx->res->code == 202;
+  _die_if_error($tx, 'Error triggering challenge', 202);
 
   if ($tx->res->json('/status') eq 'valid') {
     delete $self->server->callbacks->{$token};
@@ -208,6 +207,15 @@ sub signed_request {
     protected => $protected,
     signature => $sig,
   };
+}
+
+sub _die_if_error {
+  my ($tx, $msg, $code) = @_;
+  return if $tx->success && (!$code || $code == $tx->res->code);
+  if (my $got = $tx->res->code) { $msg .= " (code $got)" }
+  my $json = $tx->res->json || {};
+  if (my $detail = $json->{detail}) { $msg .= " - $detail" }
+  die "$msg\n";
 }
 
 sub _pem_to_der {
