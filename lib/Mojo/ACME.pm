@@ -2,7 +2,7 @@ package Mojo::ACME;
 
 use Mojo::Base -base;
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 $VERSION = eval $VERSION;
 
 use Mojo::Collection 'c';

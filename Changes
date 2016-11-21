@@ -1,5 +1,8 @@
 Revision history for Perl module Mojo-ACME
 
+0.08 2016-11-21
+  - Fix error when generating a cert with multiple domains (pink_mist++)
+
 0.07 2016-09-18
   - Show error codes and details (nickandrew++)
 

@@ -53,7 +53,10 @@ sub run {
 
   my $cert;
   Mojo::IOLoop->delay(
-    sub { $acme->new_authz($_ => shift->begin) for @new },
+    sub {
+      my $delay = shift;
+      $acme->new_authz($_ => $delay->begin) for @new;
+    },
     sub { $acme->check_all_challenges(shift->begin) },
     sub {
       my ($delay, $err) = @_;
