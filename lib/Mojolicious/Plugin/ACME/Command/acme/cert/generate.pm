@@ -51,12 +51,10 @@ sub run {
       unless $intermediate = $tx->res->body;
   }
 
+  $acme->new_authz($_) for @new;
+
   my $cert;
   Mojo::IOLoop->delay(
-    sub {
-      my $delay = shift;
-      $acme->new_authz($_ => $delay->begin) for @new;
-    },
     sub { $acme->check_all_challenges(shift->begin) },
     sub {
       my ($delay, $err) = @_;

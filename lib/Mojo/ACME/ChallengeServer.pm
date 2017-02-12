@@ -8,7 +8,6 @@ use Mojolicious;
 use Scalar::Util;
 
 has acme => sub { die 'Mojo::ACME instance is required' };
-has callbacks => sub { {} };
 has server => sub { shift->_start };
 
 sub start { shift->tap('server') }
@@ -33,8 +32,10 @@ sub _start {
     my $hmac = $c->req->headers->header('X-HMAC');
 
     return $c->reply->not_found
-      unless my $cb = delete $self->callbacks->{$token};
-    $c->on(finish => sub { $cb->($self->acme, $token) if $self });
+      unless my $challenge = delete $self->acme->challenges->{$token};
+
+    return $c->rendered(410)
+      unless $challenge->{status} eq 'pending';
 
     return $c->render(text => 'Unauthorized', status => 401)
       unless secure_compare $hmac, hmac_sha1_sum($token, $secret);

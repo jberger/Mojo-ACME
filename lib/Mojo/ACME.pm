@@ -2,7 +2,7 @@ package Mojo::ACME;
 
 use Mojo::Base -base;
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 $VERSION = eval $VERSION;
 
 use Mojo::Collection 'c';
@@ -130,7 +130,8 @@ sub keyauth {
 }
 
 sub new_authz {
-  my ($self, $value, $cb) = @_;
+  my ($self, $value) = @_;
+  $self->server; #ensure initialized
   my $url = $self->ca->url('/acme/new-authz');
   my $req = $self->signed_request({
     resource => 'new-authz',
@@ -148,7 +149,6 @@ sub new_authz {
 
   my $token = $challenge->{token};
   $self->challenges->{$token} = $challenge;
-  $self->server->callbacks->{$token} = $cb;
 
   my $trigger = $self->signed_request({
     resource => 'challenge',
@@ -156,11 +156,6 @@ sub new_authz {
   });
   $tx = $self->ua->post($challenge->{uri}, $trigger);
   _die_if_error($tx, 'Error triggering challenge', 202);
-
-  if ($tx->res->json('/status') eq 'valid') {
-    delete $self->server->callbacks->{$token};
-    Mojo::IOLoop->next_tick(sub{ $self->$cb($token) });
-  }
 }
 
 sub pending_challenges {
