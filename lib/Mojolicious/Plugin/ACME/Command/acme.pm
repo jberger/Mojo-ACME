@@ -26,9 +26,4 @@ Mojolicious::Plugin::ACME::Command::acme - ACME commands
 
 =cut
 
-__END__
-
-Mojo::Util::spurt($acme->generate_csr(qw/jberger.pl *.jberger.pl/) => 'out.csr');
-
-1;
 

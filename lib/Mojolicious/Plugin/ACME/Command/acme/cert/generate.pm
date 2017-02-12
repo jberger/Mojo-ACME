@@ -2,7 +2,7 @@ package Mojolicious::Plugin::ACME::Command::acme::cert::generate;
 use Mojo::Base 'Mojolicious::Plugin::ACME::Command';
 
 use Mojo::Collection 'c';
-use Mojo::Util 'spurt';
+use Mojo::File;
 
 use Getopt::Long qw(GetOptionsFromArray :config no_ignore_case); # no_auto_abbrev
 
@@ -71,7 +71,7 @@ sub run {
   if ($acme->cert_key->generated) {
     my $key_path = "$name.key";
     say "Writing $key_path";
-    spurt $acme->cert_key->string => $key_path;
+    Mojo::File->new($key_path)->spurt($acme->cert_key->string);
   }
 
   if ($intermediate) {
@@ -80,7 +80,7 @@ sub run {
 
   my $cert_path = "$name.crt";
   say "Writing $cert_path";
-  spurt $cert => $cert_path;
+  Mojo::File->new($cert_path)->spurt($cert);
 }
 
 1;

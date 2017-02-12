@@ -1,7 +1,7 @@
 package Mojolicious::Plugin::ACME::Command::acme::account::register;
 use Mojo::Base 'Mojolicious::Plugin::ACME::Command';
 
-use Mojo::Util 'spurt';
+use Mojo::File;
 
 has description => 'Register/verify your account with an ACME service';
 has usage => sub {
@@ -18,7 +18,7 @@ sub run {
   if ($key->generated) {
     my $key_path = $key->path;
     say "Writing $key_path";
-    spurt $key->string => $key_path;
+    Mojo::File->new($key_path)->spurt($key->string);
   }
 }
 

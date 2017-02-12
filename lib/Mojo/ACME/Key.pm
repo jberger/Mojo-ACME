@@ -2,7 +2,7 @@ package Mojo::ACME::Key;
 
 use Mojo::Base -base;
 
-use Mojo::Util;
+use Mojo::File;
 
 use Crypt::OpenSSL::RSA;
 use Crypt::OpenSSL::Bignum; # get_key_parameters
@@ -16,7 +16,7 @@ has key => sub {
   my $path = $self->path;
   my $rsa;
   if ($path && -e $path) {
-    my $string = Mojo::Util::slurp($path);
+    my $string = Mojo::File->new($path)->slurp;
     $rsa = Crypt::OpenSSL::RSA->new_private_key($string);
     $self->generated(0);
   } else {
