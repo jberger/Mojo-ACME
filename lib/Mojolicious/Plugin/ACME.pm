@@ -44,7 +44,7 @@ sub register {
     my $token = $c->stash('token');
     my $secret = $c->app->secrets->[0];
     my $hmac = hmac_sha1_sum $token, $secret;
-    $c->delay(
+    Mojo::IOLoop->delay(
       sub { $ua->get($url->clone->path("/$token"), {'X-HMAC' => $hmac}, shift->begin) },
       sub {
         my ($delay, $tx) = @_;
