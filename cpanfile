@@ -1,4 +1,4 @@
-requires 'Mojolicious', '7.15'; # Mojo::File
+requires 'Mojolicious', '8.02'; # Mojo::File
 requires 'Crypt::OpenSSL::RSA';
 requires 'Crypt::OpenSSL::Bignum'; # get_key_parameters
 requires 'Crypt::OpenSSL::PKCS10';

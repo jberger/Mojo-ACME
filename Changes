@@ -1,5 +1,8 @@
 Revision history for Perl module Mojo-ACME
 
+0.13 2018-11-23
+  - Mojo::Transaction::success was deprecated in Mojolicious 8.02
+
 0.12 2018-02-13
   - Protect against changes in Mojo::IOLoop::Delay->catch
 

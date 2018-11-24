@@ -49,7 +49,7 @@ sub register {
       sub {
         my ($delay, $tx) = @_;
         return $c->reply->not_found
-          unless $tx->success && (my $auth = $tx->res->text) && (my $hmac_res = $tx->res->headers->header('X-HMAC'));
+          unless $tx->result && (my $auth = $tx->res->text) && (my $hmac_res = $tx->res->headers->header('X-HMAC'));
         return $c->reply->not_found
           unless secure_compare $hmac_res, hmac_sha1_sum($auth, $secret);
 
