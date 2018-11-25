@@ -46,7 +46,7 @@ sub run {
       unless $int_url;
     my $tx = $acme->ua->get($int_url);
     die "Failed to fetch intermediate cert. $msg"
-      unless $tx->success;
+      unless $tx->result->is_success;
     die "Intermediate cert was empty. $msg"
       unless $intermediate = $tx->res->body;
   }

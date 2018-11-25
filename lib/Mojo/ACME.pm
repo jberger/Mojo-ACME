@@ -33,7 +33,7 @@ has ua => sub {
     my (undef, $tx) = @_;
     $tx->on(finish => sub {
       my $tx = shift;
-      return unless $self && $tx->success;
+      return unless $self && $tx->result->is_success;
       return unless my $nonce = $tx->res->headers->header('Replay-Nonce');
       push @{$self->{nonces} ||= []}, $nonce;
     });
@@ -67,7 +67,8 @@ sub check_challenge_status {
   $self->ua->get($challenge->{uri} => sub {
     my ($ua, $tx) = @_;
     my $err;
-    if (my $res = $tx->success) {
+    my $res = $tx->result;
+    if ($res->is_success) {
       $self->challenges->{$token} = $res->json;
     } else {
       $err = $tx->error;
@@ -210,7 +211,7 @@ sub signed_request {
 
 sub _die_if_error {
   my ($tx, $msg, $code) = @_;
-  return if $tx->success && (!$code || $code == $tx->res->code);
+  return if $tx->result->is_success && (!$code || $code == $tx->res->code);
   my $error = $tx->error;
   if ($error->{code}) { $msg .= " (code $error->{code})" }
   $msg .= " $error->{message}";
