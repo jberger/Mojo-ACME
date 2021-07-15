@@ -4,6 +4,7 @@ use Mojo::Base 'Mojolicious::Plugin';
 
 use Mojo::URL;
 use Mojo::UserAgent;
+use Mojo::IOLoop::Delay;
 use Mojo::Util qw/hmac_sha1_sum secure_compare/;
 use Safe::Isa '$_isa';
 
@@ -45,7 +46,7 @@ sub register {
     my $secret = $c->app->secrets->[0];
     my $hmac = hmac_sha1_sum $token, $secret;
     my $tx = $c->render_later->tx;
-    Mojo::IOLoop->delay(
+    Mojo::IOLoop::Delay->new->steps(
       sub { $ua->get($url->clone->path("/$token"), {'X-HMAC' => $hmac}, shift->begin) },
       sub {
         my ($delay, $tx) = @_;
@@ -114,4 +115,3 @@ Please note that the application's first L<secret|Mojolicious/secrets> is used a
 This may be configurable eventually but is not yet.
 
 Early versions of this module used the name C<cas> rather than L</authorities>.
-
