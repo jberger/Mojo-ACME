@@ -8,6 +8,7 @@ $VERSION = eval $VERSION;
 use Mojo::Collection 'c';
 use Mojo::JSON qw/encode_json/;
 use Mojo::URL;
+use Mojo::IOLoop::Delay;
 
 use Crypt::OpenSSL::PKCS10;
 use MIME::Base64 qw/encode_base64url encode_base64 decode_base64/;
@@ -33,8 +34,9 @@ has ua => sub {
     my (undef, $tx) = @_;
     $tx->on(finish => sub {
       my $tx = shift;
-      return unless $self && $tx->success;
-      return unless my $nonce = $tx->res->headers->header('Replay-Nonce');
+      my $res = $tx->result;
+      return unless $self && $res->is_success;
+      return unless my $nonce = $res->headers->header('Replay-Nonce');
       push @{$self->{nonces} ||= []}, $nonce;
     });
   });
@@ -44,7 +46,7 @@ has ua => sub {
 sub check_all_challenges {
   my ($self, $cb) = (shift, pop);
   my @pending = $self->pending_challenges->each;
-  Mojo::IOLoop->delay(
+  Mojo::IOLoop::Delay->new->steps(
     sub {
       my $delay = shift;
       $delay->pass unless @pending;
@@ -67,7 +69,8 @@ sub check_challenge_status {
   $self->ua->get($challenge->{uri} => sub {
     my ($ua, $tx) = @_;
     my $err;
-    if (my $res = $tx->success) {
+    my $res = $tx->result;
+    if ($res->is_success) {
       $self->challenges->{$token} = $res->json;
     } else {
       $err = $tx->error;
@@ -210,11 +213,12 @@ sub signed_request {
 
 sub _die_if_error {
   my ($tx, $msg, $code) = @_;
-  return if $tx->success && (!$code || $code == $tx->res->code);
+  my $res = $tx->result;
+  return if $res->is_success && (!$code || $code == $res->code);
   my $error = $tx->error;
   if ($error->{code}) { $msg .= " (code $error->{code})" }
   $msg .= " $error->{message}";
-  my $json = $tx->res->json || {};
+  my $json = $res->json || {};
   if (my $detail = $json->{detail}) { $msg .= " - $detail" }
   die "$msg\n";
 }
@@ -361,4 +365,3 @@ Copyright (C) 2016 by Joel Berger and L</CONTRIBUTORS>
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
-

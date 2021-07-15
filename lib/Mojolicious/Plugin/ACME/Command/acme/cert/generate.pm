@@ -3,6 +3,7 @@ use Mojo::Base 'Mojolicious::Plugin::ACME::Command';
 
 use Mojo::Collection 'c';
 use Mojo::File;
+use Mojo::IOLoop::Delay;
 
 use Getopt::Long qw(GetOptionsFromArray :config no_ignore_case); # no_auto_abbrev
 
@@ -54,7 +55,7 @@ sub run {
   $acme->new_authz($_) for @new;
 
   my $cert;
-  Mojo::IOLoop->delay(
+  Mojo::IOLoop::Delay->new->steps(
     sub { $acme->check_all_challenges(shift->begin) },
     sub {
       my ($delay, $err) = @_;
@@ -105,4 +106,3 @@ Mojolicious::Plugin::ACME::Command::acme::cert::generate - ACME signed certifica
                           defaults to true, use --no-full to disable
     -w, --wildcard      allow wildcard requests, letsencrypt does not issue wildcard certs (yet?), though others might
 =cut
-
